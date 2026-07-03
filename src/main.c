@@ -3,9 +3,16 @@
 #include <signal.h>
 #include <string.h>
 
+#include <stdlib.h>
+
 #include "core/broker.h"
 #include "core/io_engine.h"
+#include "core/logger.h"
 #include "protocol/auth.h"
+
+#ifndef DEFAULT_LOG_PATH
+#define DEFAULT_LOG_PATH "ntripcaster.log"
+#endif
 
 #ifndef APP_VERSION
 #define APP_VERSION "dev"
@@ -42,7 +49,7 @@ static void main_tick(void *ctx)
     (void)ctx;
     if (g_reload_pending) {
         g_reload_pending = 0;
-        printf("[main] SIGHUP recibido - recargando registro de auth\n");
+        log_info("main: SIGHUP recibido - recargando registro de auth");
         auth_registry_reload(g_conf_path);
     }
 }
@@ -55,7 +62,13 @@ int main(int argc, char *argv[])
     const char *conf_path = (argc > 2) ? argv[2] : DEFAULT_CONF_PATH;
     g_conf_path = conf_path;
 
-    printf("NtripCaster v%s  port=%d\n", APP_VERSION, port);
+    /* Logger (punto 100.001): argv[3] = archivo de log opcional.
+     * Nivel por env: NTRIPCASTER_LOG=debug|info|warn|error */
+    const char *log_path = (argc > 3) ? argv[3] : DEFAULT_LOG_PATH;
+    log_init(log_path, log_level_from_str(getenv("NTRIPCASTER_LOG")));
+
+    log_info("NtripCaster v%s  port=%d  conf=%s  log=%s",
+             APP_VERSION, port, conf_path, log_path);
 
     /*
      * Auth: carga inicial unica, antes de arrancar el io_engine (todavia
@@ -69,10 +82,9 @@ int main(int argc, char *argv[])
      * (el handler marca un flag; el reload real corre en main_tick).
      */
     if (auth_registry_load(conf_path) != 0) {
-        fprintf(stderr,
-            "[main] WARNING: auth no se pudo cargar desde '%s' -- "
-            "arrancando de todos modos (todo se va a rechazar hasta "
-            "que el archivo exista)\n", conf_path);
+        log_warn("main: auth no se pudo cargar desde '%s' -- arrancando "
+                 "de todos modos (todo se va a rechazar hasta que el "
+                 "archivo exista)", conf_path);
     }
 
     broker_t *broker = calloc(1, sizeof(broker_t));
@@ -108,6 +120,7 @@ int main(int argc, char *argv[])
     free(broker);
     auth_registry_destroy();
 
-    printf("[main] bye\n");
+    log_info("main: bye");
+    log_close();
     return 0;
 }

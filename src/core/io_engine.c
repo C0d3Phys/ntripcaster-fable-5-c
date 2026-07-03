@@ -8,6 +8,7 @@
  *   - Garantiza que un solo thread trabaja sobre un fd a la vez
  */
 #include "io_engine.h"
+#include "logger.h"
 #include "../protocol/ntrip.h"
 
 #include <stdio.h>
@@ -416,6 +417,51 @@ static void sweep_idle_conns(io_engine_t *eng, time_t now)
     pthread_mutex_unlock(&b->conns_lock);
 }
 
+/*
+ * report_mount_stats — Reporte periódico (30s) de integridad por mount.
+ * Muestra caudal, frames válidos, bytes corruptos y conteo por tipo de
+ * mensaje — para comparar contra lo que dice el equipo/SNIP y detectar
+ * corrupción en el camino. Corre en el accept thread.
+ */
+static void report_mount_stats(io_engine_t *eng, int interval_s)
+{
+    mountpoint_registry_t *reg = &eng->broker->mounts;
+    int n = reg->count;
+
+    for (int i = 0; i < n; i++) {
+        mountpoint_t *mp = &reg->mounts[i];
+        if (!mp->active && mp->bytes_relayed == mp->rpt_bytes)
+            continue;   /* sin source y sin tráfico nuevo — no ensuciar el log */
+
+        uint64_t d_bytes = mp->bytes_relayed     - mp->rpt_bytes;
+        uint64_t d_frms  = mp->dec_frames_ok     - mp->rpt_frames;
+        uint64_t d_skip  = mp->dec_bytes_skipped - mp->rpt_skipped;
+        mp->rpt_bytes   = mp->bytes_relayed;
+        mp->rpt_frames  = mp->dec_frames_ok;
+        mp->rpt_skipped = mp->dec_bytes_skipped;
+
+        char types[256];
+        int  tp = 0;
+        for (int t = 0; t < mp->msg_stats_n && tp < (int)sizeof(types) - 16; t++) {
+            tp += snprintf(types + tp, sizeof(types) - (size_t)tp, "%s%u:%u",
+                           t ? " " : "",
+                           mp->msg_stats[t].type, mp->msg_stats[t].count);
+        }
+        if (mp->msg_stats_n == 0) snprintf(types, sizeof(types), "-");
+
+        log_info("stats: mount=%s %s clientes=%d  %.1f KB/s  "
+                 "frames+%llu (tot %llu)  corrupto+%lluB (tot %llu)  tipos: %s",
+                 mp->name, mp->active ? "ONLINE" : "offline",
+                 mp->client_count,
+                 (double)d_bytes / 1024.0 / (double)interval_s,
+                 (unsigned long long)d_frms,
+                 (unsigned long long)mp->dec_frames_ok,
+                 (unsigned long long)d_skip,
+                 (unsigned long long)mp->dec_bytes_skipped,
+                 types);
+    }
+}
+
 /* ── Worker thread ───────────────────────────────────────────────── */
 
 static void *worker_thread(void *arg)
@@ -436,7 +482,8 @@ static void *accept_loop(void *arg)
     io_engine_t       *eng = (io_engine_t *)arg;
     struct sockaddr_in addr;
     struct epoll_event evs[IO_MAX_EVENTS];
-    time_t             last_sweep = time(NULL);
+    time_t             last_sweep  = time(NULL);
+    time_t             last_report = time(NULL);
 
     while (eng->running) {
         int n = epoll_wait(eng->epoll_fd, evs, IO_MAX_EVENTS, 200 /* ms */);
@@ -451,43 +498,58 @@ static void *accept_loop(void *arg)
             sweep_idle_conns(eng, now);
             last_sweep = now;
         }
+        if (now - last_report >= 30) {
+            report_mount_stats(eng, (int)(now - last_report));
+            last_report = now;
+        }
 
         for (int i = 0; i < n; i++) {
             conn_t  *conn   = (conn_t *)evs[i].data.ptr;
             uint32_t events = evs[i].events;
 
-            /* fd de escucha: nueva conexión entrante */
+            /* fd de escucha: nuevas conexiones entrantes.
+             *
+             * IMPORTANTE: el listen_fd está registrado con EPOLLET —
+             * el kernel notifica UNA vez por "edge" (transición
+             * vacío→no-vacío del backlog). Si llega una RÁFAGA de
+             * conexiones (p.ej. 200 rovers reconectando a la vez tras
+             * un corte), un solo accept4() por evento deja al resto
+             * varado en el backlog hasta que llegue OTRA conexión
+             * nueva. Con ET es obligatorio aceptar en loop hasta
+             * EAGAIN — descubierto empíricamente: con accept único,
+             * solo 124 de 200 clientes simultáneos entraban. */
             if (conn == NULL) {
-                /* addrlen es value-result: accept4 lo modifica en cada
-                 * llamada — resetear antes de CADA accept */
-                socklen_t addrlen = sizeof(addr);
-                int cfd = accept4(eng->listen_fd,
-                                  (struct sockaddr *)&addr, &addrlen,
-                                  SOCK_NONBLOCK | SOCK_CLOEXEC);
-                if (cfd < 0) {
-                    if (errno != EAGAIN && errno != EWOULDBLOCK)
-                        perror("accept4");
-                    continue;
-                }
+                for (;;) {
+                    /* addrlen es value-result: resetear en CADA accept */
+                    socklen_t addrlen = sizeof(addr);
+                    int cfd = accept4(eng->listen_fd,
+                                      (struct sockaddr *)&addr, &addrlen,
+                                      SOCK_NONBLOCK | SOCK_CLOEXEC);
+                    if (cfd < 0) {
+                        if (errno != EAGAIN && errno != EWOULDBLOCK)
+                            perror("accept4");
+                        break;  /* backlog drenado (o error puntual) */
+                    }
 
-                set_tcp_nodelay(cfd);
+                    set_tcp_nodelay(cfd);
 
-                char addrstr[48];
-                snprintf(addrstr, sizeof(addrstr), "%s:%d",
-                         inet_ntoa(addr.sin_addr),
-                         ntohs(addr.sin_port));
+                    char addrstr[48];
+                    snprintf(addrstr, sizeof(addrstr), "%s:%d",
+                             inet_ntoa(addr.sin_addr),
+                             ntohs(addr.sin_port));
 
-                conn_t *c = broker_conn_alloc(eng->broker, cfd, addrstr);
-                if (!c) {
-                    close(cfd);
-                    continue;
-                }
-                c->state = CONN_STATE_HANDSHAKE;
+                    conn_t *c = broker_conn_alloc(eng->broker, cfd, addrstr);
+                    if (!c) {
+                        close(cfd);
+                        continue;
+                    }
+                    c->state = CONN_STATE_HANDSHAKE;
 
-                if (io_engine_conn_watch(eng, c,
-                        EPOLLIN | EPOLLET | EPOLLONESHOT | EPOLLRDHUP) != 0) {
-                    broker_conn_free(eng->broker, c);
-                    close(cfd);
+                    if (io_engine_conn_watch(eng, c,
+                            EPOLLIN | EPOLLET | EPOLLONESHOT | EPOLLRDHUP) != 0) {
+                        broker_conn_free(eng->broker, c);
+                        close(cfd);
+                    }
                 }
                 continue;
             }

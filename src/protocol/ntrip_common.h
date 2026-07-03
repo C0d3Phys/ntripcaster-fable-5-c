@@ -23,6 +23,23 @@ void copy_until(char *dst, const char *src, char term, int dst_max);
 void send_all(int fd, const char *data, size_t len);
 
 /*
+ * ntrip_send_resp — send_all + log_debug de la primera línea de la
+ * respuesta. Usar para respuestas de protocolo (no para el body de la
+ * sourcetable ni el stream).
+ */
+void ntrip_send_resp(int fd, const char *resp, size_t len);
+
+/*
+ * ntrip_debug_request — Loguea (nivel DEBUG) el request completo tal
+ * cual llegó, con credenciales enmascaradas:
+ *   "SOURCE <pass> mp"           -> "SOURCE *** mp"
+ *   "Authorization: Basic xxxx"  -> "Authorization: Basic ***"
+ * Solo hasta el fin de headers — el payload binario pipelineado no se
+ * imprime.
+ */
+void ntrip_debug_request(int fd, const char *buf);
+
+/*
  * forward_source_payload — Recupera bytes RTCM3 que llegaron pegados al
  * handshake del source (pipelining). Usado por SOURCE v1 y POST v2 --
  * debe llamarse ANTES de io_engine_conn_watch() para evitar la race de

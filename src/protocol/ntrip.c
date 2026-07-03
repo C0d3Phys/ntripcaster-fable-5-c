@@ -28,6 +28,10 @@ void ntrip_handle_request(io_engine_t *eng, conn_t *conn)
     const char *buf = (const char *)conn->read_buf;
     size_t      total_len = conn->read_len;
 
+    /* Debug: request completo con credenciales enmascaradas
+     * (activar con NTRIPCASTER_LOG=debug) */
+    ntrip_debug_request(conn->fd, buf);
+
     int is_ntrip_v2 = (strcasestr(buf, "Ntrip-Version:") != NULL);
     int is_browser  = 0;
     const char *ua  = find_header(buf, "User-Agent");
@@ -59,7 +63,7 @@ void ntrip_handle_request(io_engine_t *eng, conn_t *conn)
     }
 
     if (strcasecmp(method, "GET") != 0) {
-        send_all(conn->fd, RESP_404, strlen(RESP_404));
+        ntrip_send_resp(conn->fd, RESP_404, strlen(RESP_404));
         io_engine_conn_close(eng, conn);
         return;
     }

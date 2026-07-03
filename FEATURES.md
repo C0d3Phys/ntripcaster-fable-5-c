@@ -48,6 +48,16 @@ FEATURE_relay_capacity_reload §1.2 #1: se imprimían en el log pero nadie los
 chequeaba. Fix: enforce en `broker_client_register`/`broker_source_register`
 usando los atomics `active_clients`/`active_sources` que ya existían.
 
+### B10. Accept único por evento con EPOLLET — ráfagas dejan conexiones varadas — medio ✅ corregido
+`src/core/io_engine.c` — descubierto empíricamente en el load test de 200
+clientes: el `listen_fd` está registrado con `EPOLLET` (el kernel notifica
+una vez por transición del backlog), pero `accept_loop` hacía UN solo
+`accept4()` por evento. Ante una ráfaga (200 rovers reconectando a la vez
+tras un corte), el resto quedaba varado en el backlog hasta que llegara
+OTRA conexión nueva: **solo 124 de 200 clientes simultáneos entraban**.
+Fix: aceptar en loop hasta `EAGAIN` (obligatorio con edge-triggered).
+Post-fix: 200/200 aceptados.
+
 ### B9. `dispatch_client` llena el write_buf una sola vez — medio ✅ corregido
 Si el ring tiene más datos que el espacio libre del write_buf, el resto
 esperaba al próximo wakeup del source. Fix: loop fill→flush hasta drenar
@@ -84,6 +94,44 @@ Fase 3 de FEATURE_auth_registry, con el patrón exacto del doc (§2.3):
   ciclo (≤200 ms) y ejecuta el reload vía callback `tick_cb` del engine —
   nunca dentro del signal handler.
 - Uso: editar `conf/ntripcaster.conf` → `kill -HUP <pid>` → sin reiniciar.
+
+---
+
+## Parte 2b — Sesión 2026-07-03 (debug de sources GNSS reales)
+
+### B11. Parser RTCM3 perdía frames partidos por TCP — medio ✅ corregido
+`src/gnss/rtcm3_frame.c` — bug histórico descubierto con test de frames
+fragmentados: si el buffer terminaba en un frame a medio llegar SIN ningún
+frame completo antes, el fallback consumía `len-6` bytes — se comía el
+preamble `0xD3` del frame pendiente y el frame entero se perdía como basura
+al llegar el resto. En streaming (fragmentación TCP normal) descartaba
+frames válidos sistemáticamente. Fix: `bytes_used` = inicio exacto del tail
+incompleto. Verificado: 51/51 frames (antes 41/51).
+
+### F4. Decode incremental por source + stats de integridad ✅
+`mountpoint.h/c` — buffer de reensamblado por mount (8KB): los frames
+partidos entre `read()`s se completan en el próximo chunk. Contadores:
+frames válidos (CRC ok), bytes corruptos (preamble falso / CRC malo), y
+tabla por tipo de mensaje. Verificado con inyección de ruido + CRC roto:
+118B corruptos detectados exactos, 0 falsos positivos.
+
+### F5. Reporte periódico de integridad (30 s) ✅
+`io_engine.c` — por cada mount activo:
+`stats: mount=BASE1 ONLINE clientes=2  1.4 KB/s  frames+210 (tot 2516)  corrupto+0B (tot 0)  tipos: 1074:60 1084:60 1006:6 ...`
+Comparable 1:1 contra el panel de SNIP para detectar corrupción en el camino.
+
+### F6. Debug de protocolo: request y response visibles ✅
+Con `NTRIPCASTER_LOG=debug`: cada request entrante se loguea COMPLETO con
+credenciales enmascaradas (`SOURCE *** BASE1`, `Authorization: Basic ***`)
+y cada respuesta enviada se loguea (`<- ICY 200 OK`, `<- HTTP/1.1 401 ...`).
+
+### Fix operativo
+`conf/ntripcaster.conf` registraba `Demo1` pero los equipos publicaban a
+`BASE1` → rechazo fail-closed. El "36.1% connected" de SNIP era el promedio
+acumulado incluyendo la ventana de rechazos, no un problema del relay.
+También: `src/CMakeLists.txt` no incluía `core/logger.c` (link roto) — el
+único daño real de la sesión interrumpida; el resto de archivos estaba
+íntegro.
 
 ---
 
@@ -127,3 +175,25 @@ Compilado con `gcc -std=c17 -D_GNU_SOURCE -Wall -Wextra -Wpedantic` — **0 warn
 | Reload SIGHUP (`rover9` agregado en caliente) | ✅ rechazado antes → aceptado después, sin reiniciar |
 | Handshake timeout (10 s) | ✅ kick a los ~12 s (sweep cada 5 s) |
 | Shutdown limpio (SIGINT) | ✅ |
+
+### Load test: 1 source → 200 clientes (VM 2 CPUs, sandbox)
+
+Source emitiendo 14 KB por epoch (MSM7 típico a ~1 Hz), 200 clientes
+suscritos simultáneamente:
+
+| Métrica | Valor |
+|---|---|
+| Threads del proceso | 3 (1 accept + 2 workers = nproc) — constante, NO crece con conexiones |
+| RSS arranque | ~35 MB (dominado por 128 rings × 256 KB pre-tocados por el memset de broker_init) |
+| RSS con 200 clientes activos | ~35.3 MB (+~0.3 MB; el heap por conexión es lazy) |
+| Clientes aceptados en ráfaga | 200/200 (tras fix B10; antes 124/200) |
+| Frames entregados | 6/6 epochs × 200 clientes = 100 % |
+| Latencia source→cliente (mín) | ~1–9 ms |
+| Latencia source→cliente (máx, el último de 200) | ~7–21 ms |
+| Spread primero→último | 3–16 ms por epoch |
+| Kicks por lag | 0 |
+
+El spread incluye el ruido del harness Python compartiendo las mismas 2
+CPUs con el caster; el costo real del caster por epoch es ~0.3 ms de
+`clients_wakeup` (200 × epoll_ctl) + ~200 × (memcpy 14 KB + write) repartido
+entre los workers. Para RTK (correcciones útiles por 1–2 s) es ruido.

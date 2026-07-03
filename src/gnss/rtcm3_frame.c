@@ -70,9 +70,11 @@ rtcm3_rc_t rtcm3_parse_stream(const uint8_t *buf, size_t len,
             continue;
         }
 
-        /* 2. Necesitamos al menos 3 bytes para leer header */
+        /* 2. Necesitamos al menos 3 bytes para leer header.
+         * Si no alcanzan, es un frame POSIBLEMENTE incompleto que
+         * empieza en i — detenerse SIN consumirlo (el caller lo
+         * conserva y lo completa con el próximo chunk del socket). */
         if (i + 3u > len) {
-            /* Frame incompleto — detenerse, pedir más datos */
             break;
         }
 
@@ -80,9 +82,10 @@ rtcm3_rc_t rtcm3_parse_stream(const uint8_t *buf, size_t len,
         uint32_t body_len  = frame_body_len(buf + i);
         uint32_t frame_len = 3u + body_len + 3u;
 
-        /* 4. Verificar que el frame completo está en el buffer */
+        /* 4. Verificar que el frame completo está en el buffer.
+         * Igual que arriba: detenerse en i, sin consumir el tail. */
         if (i + frame_len > len) {
-            break; /* Necesitamos más datos */
+            break;
         }
 
         /* 5. Validar CRC */
@@ -104,16 +107,22 @@ rtcm3_rc_t rtcm3_parse_stream(const uint8_t *buf, size_t len,
             (*out_count)++;
         }
 
-        *bytes_used = i + frame_len;
         i += frame_len;
     }
 
-    /* Avanzar bytes_used hasta el último frame completo procesado */
-    if (*bytes_used == 0 && *out_count == 0) {
-        /* Si no encontramos nada pero recorrimos el buffer,
-         * consumir todo excepto los últimos 5 bytes (posible preamble incompleto) */
-        *bytes_used = (len > RTCM3_MIN_FRAME) ? (len - RTCM3_MIN_FRAME) : 0;
-    }
+    /*
+     * i quedó exactamente al inicio del tail incompleto (si lo hay) o
+     * en len (todo procesado). Consumir TODO lo anterior: frames
+     * válidos + basura descartada byte a byte.
+     *
+     * FIX (bug histórico): la versión anterior, si el buffer terminaba
+     * en un frame a medio llegar sin ningún frame completo antes,
+     * consumía len-6 bytes — se comía el preamble 0xD3 del frame
+     * pendiente y ese frame entero se perdía como basura al llegar el
+     * resto. En streaming (frames partidos por TCP) esto descartaba
+     * frames válidos de forma sistemática.
+     */
+    *bytes_used = i;
 
     return RTCM3_RC_OK;
 }

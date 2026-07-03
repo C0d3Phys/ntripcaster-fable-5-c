@@ -67,6 +67,24 @@ typedef struct mountpoint_t {
     uint64_t frames_relayed;
     time_t   source_connected_at;
 
+    /* ── Decode incremental del stream (integridad, punto debug) ──
+     * Los frames RTCM3 llegan partidos entre read()s del socket; sin
+     * reensamblar, el decode per-chunk pierde frames y reporta basura
+     * que no existe. dec_buf acumula el tail incompleto entre chunks. */
+#define MP_DEC_BUF_SIZE   8192
+#define MP_MSG_STATS_MAX  24
+    uint8_t  dec_buf[MP_DEC_BUF_SIZE];
+    uint32_t dec_len;
+    uint64_t dec_frames_ok;       /* frames con CRC válido */
+    uint64_t dec_bytes_skipped;   /* bytes descartados: preamble falso/CRC malo */
+    struct { uint16_t type; uint32_t count; } msg_stats[MP_MSG_STATS_MAX];
+    int      msg_stats_n;
+
+    /* snapshot para el reporte periódico (deltas cada ~30s) */
+    uint64_t rpt_bytes;
+    uint64_t rpt_frames;
+    uint64_t rpt_skipped;
+
     /* Lock — protege source y clients_head */
     pthread_rwlock_t lock;
 

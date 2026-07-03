@@ -1,0 +1,2 @@
+/usr/bin/ar qc libinih_vendor.a CMakeFiles/inih_vendor.dir/vendor/inih/ini.c.o
+/usr/bin/ranlib libinih_vendor.a

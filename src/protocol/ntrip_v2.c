@@ -10,6 +10,7 @@
 #include "ntrip_common.h"
 #include "auth.h"
 #include "../core/broker.h"
+#include "../core/logger.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -41,27 +42,27 @@ void ntrip_v2_handle_source(io_engine_t *eng, conn_t *conn,
     auth_parse_basic(auth_hdr, user, sizeof(user), pass, sizeof(pass));
     snprintf(conn->user, sizeof(conn->user), "%s", user);
 
-    printf("[ntrip] SOURCE v2 fd=%d mp=%s user=%s\n",
-           conn->fd, conn->mountpoint, conn->user);
+    log_info("ntrip: SOURCE v2 fd=%d mp=%s user=%s addr=%s",
+             conn->fd, conn->mountpoint, conn->user, conn->remote_addr);
 
     if (auth_check_source(conn->mountpoint, pass) != 0) {
-        printf("[ntrip] SOURCE v2 fd=%d mp=%s auth rechazado\n",
-               conn->fd, conn->mountpoint);
-        send_all(conn->fd, RESP_401, strlen(RESP_401));
+        log_warn("ntrip: SOURCE v2 auth rechazado fd=%d mp=%s addr=%s",
+                 conn->fd, conn->mountpoint, conn->remote_addr);
+        ntrip_send_resp(conn->fd, RESP_401, strlen(RESP_401));
         io_engine_conn_close(eng, conn);
         return;
     }
 
     if (broker_source_register(eng->broker, conn, conn->mountpoint) != 0) {
-        send_all(conn->fd, RESP_409, strlen(RESP_409));
+        ntrip_send_resp(conn->fd, RESP_409, strlen(RESP_409));
         io_engine_conn_close(eng, conn);
         return;
     }
 
     conn->ntrip_version = NTRIP_VERSION_2;
     conn->state         = CONN_STATE_SOURCE_ACTIVE;
-    send_all(conn->fd, RESP_HTTP_200_SOURCE, strlen(RESP_HTTP_200_SOURCE));
-    printf("[ntrip] source v2 registered  fd=%d mp=%s\n", conn->fd, conn->mountpoint);
+    ntrip_send_resp(conn->fd, RESP_HTTP_200_SOURCE, strlen(RESP_HTTP_200_SOURCE));
+    log_info("ntrip: source v2 registrado fd=%d mp=%s", conn->fd, conn->mountpoint);
 
     forward_source_payload(eng, conn, buf, total_len);
     io_engine_conn_watch(eng, conn, EPOLLIN | EPOLLET | EPOLLONESHOT | EPOLLRDHUP);

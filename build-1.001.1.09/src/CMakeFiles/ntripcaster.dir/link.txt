@@ -1,0 +1,1 @@
+/usr/bin/cc -g CMakeFiles/ntripcaster.dir/main.c.o -o ntripcaster  libntripcaster_core.a ../libinih_vendor.a -lm 

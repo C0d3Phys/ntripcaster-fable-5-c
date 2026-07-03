@@ -187,44 +187,89 @@ void mp_update_receiver(mountpoint_t *mp, const rtcm3_receiver_t *rx)
  *
  * El decoder RTCM3 extrae coords/logging sin bloquear el relay.
  */
+/* Cuenta un frame por tipo de mensaje (tabla chica, orden de aparición) */
+static void mp_count_msg_type(mountpoint_t *mp, uint16_t type)
+{
+    for (int i = 0; i < mp->msg_stats_n; i++) {
+        if (mp->msg_stats[i].type == type) {
+            mp->msg_stats[i].count++;
+            return;
+        }
+    }
+    if (mp->msg_stats_n < MP_MSG_STATS_MAX) {
+        mp->msg_stats[mp->msg_stats_n].type  = type;
+        mp->msg_stats[mp->msg_stats_n].count = 1;
+        mp->msg_stats_n++;
+    }
+}
+
 size_t mp_relay(mountpoint_t *mp, const uint8_t *data, size_t len)
 {
     if (len == 0) return 0;
 
-    /* ── 1. Escribir al ring (zero-copy relay) ── */
+    /* ── 1. Escribir al ring (zero-copy relay) ──
+     * El relay NUNCA depende del decode: los bytes salen a los clientes
+     * tal cual llegaron, aunque estén corruptos. El decode de abajo es
+     * SOLO para visibilidad (coords + stats de integridad). */
     size_t written = rb_write(&mp->ring, data, len);
     mp->bytes_relayed += written;
 
-    /* ── 2. Decode RTCM3 para logging/coords (best-effort) ── */
-    rtcm3_frame_t frames[RELAY_FRAME_MAX];
-    int           frame_count = 0;
-    size_t        used        = 0;
+    /* ── 2. Decode incremental con reensamblado ──
+     * Acumular en dec_buf y parsear ahí: los frames partidos entre
+     * read()s se completan en el próximo chunk en vez de perderse. */
+    const uint8_t *p         = data;
+    size_t         remaining = len;
 
-    rtcm3_parse_stream(data, len, frames, RELAY_FRAME_MAX,
-                       &frame_count, &used);
+    while (remaining > 0) {
+        size_t space = MP_DEC_BUF_SIZE - mp->dec_len;
+        size_t take  = remaining < space ? remaining : space;
+        memcpy(mp->dec_buf + mp->dec_len, p, take);
+        mp->dec_len += (uint32_t)take;
+        p           += take;
+        remaining   -= take;
 
-    mp->frames_relayed += (uint64_t)frame_count;
+        rtcm3_frame_t frames[RELAY_FRAME_MAX];
+        int           frame_count = 0;
+        size_t        used        = 0;
 
-    for (int i = 0; i < frame_count; i++) {
-        rtcm3_message_t msg;
-        if (rtcm3_decode(&frames[i], &msg) != RTCM3_RC_OK)
-            continue;
+        rtcm3_parse_stream(mp->dec_buf, mp->dec_len, frames,
+                           RELAY_FRAME_MAX, &frame_count, &used);
 
-        switch (msg.type) {
-        case RTCM3_MSG_COORDS:
-            mp_update_coords(mp, &msg.coords);
-            break;
+        mp->frames_relayed += (uint64_t)frame_count;
+        mp->dec_frames_ok  += (uint64_t)frame_count;
 
-        case RTCM3_MSG_RECEIVER:
-            mp_update_receiver(mp, &msg.receiver);
-            break;
+        /* Bytes consumidos que NO son frames válidos = basura
+         * (preamble falso, CRC malo, ruido serial) */
+        size_t frame_bytes = 0;
+        for (int i = 0; i < frame_count; i++) {
+            frame_bytes += frames[i].frame_len;
+            mp_count_msg_type(mp, frames[i].msg_type);
 
-        case RTCM3_MSG_MSM:
-            /* Logging futuro: epoch, satélites por constelación */
-            break;
+            rtcm3_message_t msg;
+            if (rtcm3_decode(&frames[i], &msg) != RTCM3_RC_OK)
+                continue;
+            switch (msg.type) {
+            case RTCM3_MSG_COORDS:   mp_update_coords(mp, &msg.coords);     break;
+            case RTCM3_MSG_RECEIVER: mp_update_receiver(mp, &msg.receiver); break;
+            default: break;
+            }
+        }
+        if (used > frame_bytes)
+            mp->dec_bytes_skipped += (uint64_t)(used - frame_bytes);
 
-        default:
-            break;
+        /* Correr el resto (frame incompleto) al inicio del buffer */
+        if (used > 0) {
+            memmove(mp->dec_buf, mp->dec_buf + used, mp->dec_len - used);
+            mp->dec_len -= (uint32_t)used;
+        }
+
+        /* Guardia anti-atasco: un 0xD3 falso con longitud que promete
+         * más de lo que puede existir (frame max = 1029B) nunca se va
+         * a completar — saltarlo a mano para no frenar el parser. */
+        if (mp->dec_len > 1100 && used == 0) {
+            mp->dec_bytes_skipped++;
+            memmove(mp->dec_buf, mp->dec_buf + 1, mp->dec_len - 1);
+            mp->dec_len--;
         }
     }
 

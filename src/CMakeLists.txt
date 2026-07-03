@@ -3,6 +3,7 @@ set(CORE_SOURCES
   core/ring_buffer.c
   core/broker.c
   core/mountpoint.c
+  core/logger.c
   gnss/rtcm3_frame.c
   gnss/rtcm3_station.c
   gnss/rtcm3_msm.c

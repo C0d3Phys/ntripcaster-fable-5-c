@@ -5,6 +5,7 @@
 #include "auth.h"
 #include "sourcetable.h"
 #include "../core/broker.h"
+#include "../core/logger.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -58,6 +59,57 @@ void send_all(int fd, const char *data, size_t len)
     }
 }
 
+void ntrip_send_resp(int fd, const char *resp, size_t len)
+{
+    send_all(fd, resp, len);
+
+    /* Primera línea de la respuesta, sin CRLF, para el log */
+    char line[128];
+    size_t n = 0;
+    while (n < len && n < sizeof(line) - 1 &&
+           resp[n] != '\r' && resp[n] != '\n') {
+        line[n] = resp[n];
+        n++;
+    }
+    line[n] = '\0';
+    log_debug("ntrip: fd=%d <- %s", fd, line);
+}
+
+void ntrip_debug_request(int fd, const char *buf)
+{
+    /* Copia solo los headers (hasta \r\n\r\n) con credenciales tapadas */
+    char masked[2048];
+    size_t o = 0;
+    const char *end = strstr(buf, "\r\n\r\n");
+    size_t req_len = end ? (size_t)(end - buf) : strlen(buf);
+    if (req_len > sizeof(masked) - 1) req_len = sizeof(masked) - 1;
+
+    for (size_t i = 0; i < req_len && o < sizeof(masked) - 5; ) {
+        /* SOURCE <password> ... -> SOURCE *** ... */
+        if (i == 0 && str_icase_starts(buf, "SOURCE ")) {
+            memcpy(masked + o, buf, 7); o += 7; i += 7;
+            while (i < req_len && buf[i] != ' ' && buf[i] != '\r') i++;
+            memcpy(masked + o, "***", 3); o += 3;
+            continue;
+        }
+        /* Authorization: Basic xxx -> Basic *** */
+        if (str_icase_starts(buf + i, "Authorization:")) {
+            const char *eol = memchr(buf + i, '\r', req_len - i);
+            size_t hdr_len = eol ? (size_t)(eol - (buf + i)) : req_len - i;
+            const char *tag = "Authorization: Basic ***";
+            size_t tag_len = strlen(tag);
+            if (o + tag_len < sizeof(masked) - 1) {
+                memcpy(masked + o, tag, tag_len); o += tag_len;
+            }
+            i += hdr_len;
+            continue;
+        }
+        masked[o++] = buf[i++];
+    }
+    masked[o] = '\0';
+    log_debug("ntrip: fd=%d -> request:\n%s", fd, masked);
+}
+
 /* ── Payload pipeleado con el handshake del source ──────────────────
  *
  * Compartido por SOURCE v1 y POST v2: en ambos casos el read() del
@@ -80,8 +132,8 @@ void forward_source_payload(io_engine_t *eng, conn_t *conn,
     broker_source_data(eng->broker, conn, extra, extra_len);
     io_engine_wakeup_mount_clients(eng, conn->mp);
 
-    printf("[ntrip] source fd=%d pipelined payload recuperado: %zu bytes\n",
-           conn->fd, extra_len);
+    log_info("ntrip: source fd=%d pipelined payload recuperado: %zu bytes",
+             conn->fd, extra_len);
 }
 
 /* ── Cliente GET (v1 y v2 comparten esta misma logica) ──────────────── */
@@ -117,17 +169,17 @@ void ntrip_handle_client_get(io_engine_t *eng, conn_t *conn,
     auth_parse_basic(auth_hdr, user, sizeof(user), pass, sizeof(pass));
     snprintf(conn->user, sizeof(conn->user), "%s", user);
 
-    printf("[ntrip] CLIENT fd=%d mp=%s user=%s v%d\n",
-           conn->fd, conn->mountpoint, conn->user,
-           is_ntrip_v2 ? 2 : 1);
+    log_info("ntrip: CLIENT fd=%d mp=%s user=%s v%d addr=%s",
+             conn->fd, conn->mountpoint, conn->user,
+             is_ntrip_v2 ? 2 : 1, conn->remote_addr);
 
     if (auth_check_client(conn->mountpoint, user, pass) != 0) {
-        printf("[ntrip] CLIENT fd=%d mp=%s user=%s auth rechazado\n",
-               conn->fd, conn->mountpoint, user);
+        log_warn("ntrip: CLIENT auth rechazado fd=%d mp=%s user='%s' addr=%s",
+                 conn->fd, conn->mountpoint, user, conn->remote_addr);
         if (is_ntrip_v2) {
-            send_all(conn->fd, RESP_HTTP_401, strlen(RESP_HTTP_401));
+            ntrip_send_resp(conn->fd, RESP_HTTP_401, strlen(RESP_HTTP_401));
         } else {
-            send_all(conn->fd, RESP_ICY_401_CLIENT, strlen(RESP_ICY_401_CLIENT));
+            ntrip_send_resp(conn->fd, RESP_ICY_401_CLIENT, strlen(RESP_ICY_401_CLIENT));
         }
         io_engine_conn_close(eng, conn);
         return;
@@ -135,7 +187,7 @@ void ntrip_handle_client_get(io_engine_t *eng, conn_t *conn,
 
     if (broker_client_register(eng->broker, conn, conn->mountpoint) != 0) {
         if (is_ntrip_v2 || is_browser) {
-            send_all(conn->fd, RESP_404, strlen(RESP_404));
+            ntrip_send_resp(conn->fd, RESP_404, strlen(RESP_404));
         } else {
             sourcetable_handle_v1(eng, conn);
         }
@@ -146,13 +198,13 @@ void ntrip_handle_client_get(io_engine_t *eng, conn_t *conn,
     conn->state         = CONN_STATE_CLIENT_ACTIVE;
 
     if (is_ntrip_v2) {
-        send_all(conn->fd, RESP_HTTP_200_STREAM, strlen(RESP_HTTP_200_STREAM));
+        ntrip_send_resp(conn->fd, RESP_HTTP_200_STREAM, strlen(RESP_HTTP_200_STREAM));
     } else {
-        send_all(conn->fd, RESP_ICY_200, strlen(RESP_ICY_200));
+        ntrip_send_resp(conn->fd, RESP_ICY_200, strlen(RESP_ICY_200));
     }
 
     io_engine_conn_watch(eng, conn,
         EPOLLIN | EPOLLOUT | EPOLLET | EPOLLONESHOT | EPOLLRDHUP);
 
-    printf("[ntrip] client subscribed  fd=%d mp=%s\n", conn->fd, conn->mountpoint);
+    log_info("ntrip: client suscrito fd=%d mp=%s", conn->fd, conn->mountpoint);
 }

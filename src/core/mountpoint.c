@@ -88,6 +88,16 @@ int mp_source_attach(mountpoint_t *mp, conn_t *source)
     mp->source_connected_at = time(NULL);
     source->mp             = mp;
 
+    /* Reset de stats de decode: son POR SOURCE, no históricas del mount.
+     * Sin esto, al cambiar la fuente (ej. Demo1 MSM → SCSC legacy) los
+     * tipos de mensaje de ambas se mezclan y confunden el diagnóstico. */
+    mp->msg_stats_n       = 0;
+    mp->dec_len           = 0;
+    mp->dec_frames_ok     = 0;
+    mp->dec_bytes_skipped = 0;
+    mp->rpt_frames        = 0;
+    mp->rpt_skipped       = 0;
+
     pthread_rwlock_unlock(&mp->lock);
 
     printf("[mount:%s] source attached fd=%d addr=%s\n",

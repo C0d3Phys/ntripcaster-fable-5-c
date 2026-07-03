@@ -195,12 +195,17 @@ static void dispatch_source(io_engine_t *eng, conn_t *conn)
             broker_source_data(eng->broker, conn, buf, (size_t)n);
             got_data = 1;
         } else if (n == 0) {
-            /* Source cerró la conexión */
+            /* Source cerró la conexión (EOF limpio — típico: el relay
+             * upstream perdió SU fuente y cerró el push) */
+            log_info("io: source fd=%d mp=%s cerro la conexion (EOF)",
+                     conn->fd, conn->mountpoint);
             io_engine_conn_close(eng, conn);
             return;
         } else {
             if (errno == EAGAIN || errno == EWOULDBLOCK)
                 break;  /* edge-triggered: procesamos todo */
+            log_warn("io: source fd=%d mp=%s error de lectura (errno=%d)",
+                     conn->fd, conn->mountpoint, errno);
             io_engine_conn_close(eng, conn);
             return;
         }
@@ -409,8 +414,9 @@ static void sweep_idle_conns(io_engine_t *eng, time_t now)
         }
 
         if (limit > 0 && idle > limit) {
-            fprintf(stderr, "[io] timeout %s fd=%d idle=%ds (limit %ds)\n",
-                    conn_state_name(c->state), c->fd, idle, limit);
+            log_warn("io: timeout %s fd=%d mp=%s idle=%ds (limite %ds) -> kick",
+                     conn_state_name(c->state), c->fd,
+                     c->mountpoint[0] ? c->mountpoint : "-", idle, limit);
             shutdown(c->fd, SHUT_RDWR);
         }
     }

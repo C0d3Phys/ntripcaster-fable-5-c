@@ -1,0 +1,25 @@
+; Copy this file to ntrip_tools.conf, fill the upstream credentials, and
+; restrict its permissions because it contains passwords:
+;   chmod 600 test/tools/ntrip_tools.conf
+
+[upstream]
+host = caster.example
+port = 2101
+mountpoint = REMOTE_MOUNT
+user = external_user
+password = CHANGE_ME
+
+; Must match [source] in conf/ntripcaster.conf.
+[local]
+host = 127.0.0.1
+port = 2101
+mountpoint = BASE1
+source_password = passbase123
+
+; Must match [client:BASE1] in conf/ntripcaster.conf.
+[rover]
+user = rover1
+password = passrover1
+seconds = 30
+; Leave empty to avoid writing a capture.
+output = capture.rtcm3

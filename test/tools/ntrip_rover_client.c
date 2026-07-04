@@ -14,13 +14,14 @@
 static void usage(const char *program)
 {
     printf("Usage:\n"
+           "  %s --config FILE\n"
            "  %s HOST PORT MOUNT USER [SECONDS] [OUTPUT.bin]\n\n"
            "Required environment variable:\n"
            "  LOCAL_ROVER_PASS    Password configured for USER on MOUNT\n\n"
            "SECONDS=0 (default) runs until Ctrl+C. OUTPUT.bin is optional.\n\n"
            "Example:\n"
            "  LOCAL_ROVER_PASS=passrover1 %s 127.0.0.1 2101 BASE1 rover1 30 capture.rtcm3\n",
-           program, program);
+           program, program, program);
 }
 
 static void inspect(uint8_t *decode, size_t *decode_len,
@@ -59,35 +60,50 @@ int main(int argc, char **argv)
         usage(argv[0]);
         return 0;
     }
-    if (argc < 5 || argc > 7) {
+    ntrip_tool_config_t config;
+    memset(&config, 0, sizeof(config));
+    if (argc == 3 && strcmp(argv[1], "--config") == 0) {
+        if (nt_config_load(argv[2], &config) != 0 ||
+            nt_config_validate_rover(&config) != 0) return 2;
+    } else if (argc < 5 || argc > 7) {
         usage(argv[0]);
         return 2;
     }
-    const char *password = getenv("LOCAL_ROVER_PASS");
-    if (!password || !*password) {
-        fprintf(stderr, "LOCAL_ROVER_PASS is required\n");
-        return 2;
+    if (!(argc == 3 && strcmp(argv[1], "--config") == 0)) {
+        snprintf(config.local_host, sizeof(config.local_host), "%s", argv[1]);
+        snprintf(config.local_port, sizeof(config.local_port), "%s", argv[2]);
+        snprintf(config.local_mount, sizeof(config.local_mount), "%s", argv[3]);
+        snprintf(config.rover_user, sizeof(config.rover_user), "%s", argv[4]);
+        config.rover_seconds = argc >= 6 ? strtol(argv[5], NULL, 10) : 0;
+        if (argc == 7) snprintf(config.rover_output, sizeof(config.rover_output), "%s", argv[6]);
+        const char *password = getenv("LOCAL_ROVER_PASS");
+        if (!password || !*password) {
+            fprintf(stderr, "LOCAL_ROVER_PASS is required\n");
+            return 2;
+        }
+        snprintf(config.rover_password, sizeof(config.rover_password), "%s", password);
     }
-    long duration = argc >= 6 ? strtol(argv[5], NULL, 10) : 0;
+    long duration = config.rover_seconds;
     FILE *capture = NULL;
-    if (argc == 7) {
-        capture = fopen(argv[6], "wb");
+    if (config.rover_output[0]) {
+        capture = fopen(config.rover_output, "wb");
         if (!capture) {
-            perror(argv[6]);
+            perror(config.rover_output);
             return 1;
         }
     }
 
     nt_install_signal_handlers();
-    int fd = nt_connect(argv[1], argv[2]);
+    int fd = nt_connect(config.local_host, config.local_port);
     if (fd < 0) return 1;
     char basic[768], request[2048];
-    if (nt_base64_basic(argv[4], password, basic, sizeof(basic)) != 0) return 1;
+    if (nt_base64_basic(config.rover_user, config.rover_password,
+                        basic, sizeof(basic)) != 0) return 1;
     int request_len = snprintf(request, sizeof(request),
         "GET /%s HTTP/1.0\r\n"
         "User-Agent: NTRIP ntripcaster-test-rover/1.0\r\n"
         "Authorization: Basic %s\r\n"
-        "Accept: */*\r\n\r\n", argv[3], basic);
+        "Accept: */*\r\n\r\n", config.local_mount, basic);
     ntrip_response_t response;
     if (request_len < 0 || (size_t)request_len >= sizeof(request) ||
         nt_send_all(fd, request, (size_t)request_len) != 0 ||
@@ -101,7 +117,8 @@ int main(int argc, char **argv)
     }
 
     fprintf(stderr, "rover connected: %s:%s/%s as %s\n",
-            argv[1], argv[2], argv[3], argv[4]);
+            config.local_host, config.local_port, config.local_mount,
+            config.rover_user);
     uint8_t decode[DECODE_BUFFER_SIZE];
     size_t decode_len = 0;
     uint64_t bytes = 0, frames = 0, skipped = 0;

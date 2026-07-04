@@ -10,13 +10,14 @@
 static void usage(const char *program)
 {
     printf("Usage:\n"
+           "  %s --config FILE\n"
            "  %s UP_HOST UP_PORT UP_MOUNT UP_USER LOCAL_HOST LOCAL_PORT LOCAL_MOUNT\n\n"
            "Required environment variables:\n"
            "  UPSTREAM_PASS       Password used to consume the upstream caster\n"
            "  LOCAL_SOURCE_PASS   SOURCE password configured in the local caster\n\n"
            "Example:\n"
            "  UPSTREAM_PASS=secret LOCAL_SOURCE_PASS=passbase123 \\\n+  %s caster.example 2101 REMOTE user 127.0.0.1 2101 BASE1\n",
-           program, program);
+           program, program, program);
 }
 
 static int open_upstream(const char *host, const char *port,
@@ -79,23 +80,41 @@ int main(int argc, char **argv)
         usage(argv[0]);
         return 0;
     }
-    if (argc != 8) {
+    ntrip_tool_config_t config;
+    memset(&config, 0, sizeof(config));
+    if (argc == 3 && strcmp(argv[1], "--config") == 0) {
+        if (nt_config_load(argv[2], &config) != 0 ||
+            nt_config_validate_relay(&config) != 0) return 2;
+    } else if (argc != 8) {
         usage(argv[0]);
         return 2;
     }
-    const char *up_pass = getenv("UPSTREAM_PASS");
-    const char *local_pass = getenv("LOCAL_SOURCE_PASS");
-    if (!up_pass || !*up_pass || !local_pass || !*local_pass) {
-        fprintf(stderr, "UPSTREAM_PASS and LOCAL_SOURCE_PASS are required\n");
-        return 2;
+    if (argc == 8) {
+        snprintf(config.upstream_host, sizeof(config.upstream_host), "%s", argv[1]);
+        snprintf(config.upstream_port, sizeof(config.upstream_port), "%s", argv[2]);
+        snprintf(config.upstream_mount, sizeof(config.upstream_mount), "%s", argv[3]);
+        snprintf(config.upstream_user, sizeof(config.upstream_user), "%s", argv[4]);
+        snprintf(config.local_host, sizeof(config.local_host), "%s", argv[5]);
+        snprintf(config.local_port, sizeof(config.local_port), "%s", argv[6]);
+        snprintf(config.local_mount, sizeof(config.local_mount), "%s", argv[7]);
+        const char *up_pass = getenv("UPSTREAM_PASS");
+        const char *local_pass = getenv("LOCAL_SOURCE_PASS");
+        if (!up_pass || !*up_pass || !local_pass || !*local_pass) {
+            fprintf(stderr, "UPSTREAM_PASS and LOCAL_SOURCE_PASS are required\n");
+            return 2;
+        }
+        snprintf(config.upstream_password, sizeof(config.upstream_password), "%s", up_pass);
+        snprintf(config.source_password, sizeof(config.source_password), "%s", local_pass);
     }
 
     nt_install_signal_handlers();
     ntrip_response_t upstream_response;
-    int upstream = open_upstream(argv[1], argv[2], argv[3], argv[4],
-                                 up_pass, &upstream_response);
+    int upstream = open_upstream(config.upstream_host, config.upstream_port,
+                                 config.upstream_mount, config.upstream_user,
+                                 config.upstream_password, &upstream_response);
     if (upstream < 0) return 1;
-    int local = open_local_source(argv[5], argv[6], argv[7], local_pass);
+    int local = open_local_source(config.local_host, config.local_port,
+                                  config.local_mount, config.source_password);
     if (local < 0) {
         close(upstream);
         return 1;
@@ -108,7 +127,8 @@ int main(int argc, char **argv)
         total += upstream_response.payload_len;
     }
     fprintf(stderr, "relay active: %s:%s/%s -> %s:%s/%s\n",
-            argv[1], argv[2], argv[3], argv[5], argv[6], argv[7]);
+            config.upstream_host, config.upstream_port, config.upstream_mount,
+            config.local_host, config.local_port, config.local_mount);
 
     uint8_t buf[64 * 1024];
     while (nt_running()) {

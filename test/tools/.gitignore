@@ -1,0 +1,4 @@
+# Local credentials and binary captures
+ntrip_tools.conf
+*.rtcm3
+*.bin

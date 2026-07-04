@@ -4,9 +4,12 @@
 #include <netdb.h>
 #include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
+
+#include "ini.h"
 
 static volatile sig_atomic_t g_running = 1;
 
@@ -25,6 +28,88 @@ void nt_install_signal_handlers(void)
 
 int nt_running(void) { return g_running != 0; }
 void nt_stop(void) { g_running = 0; }
+
+static void copy_value(char *dst, size_t size, const char *value)
+{
+    snprintf(dst, size, "%s", value);
+}
+
+static int config_handler(void *user, const char *section,
+                          const char *name, const char *value)
+{
+    ntrip_tool_config_t *c = user;
+    if (strcmp(section, "upstream") == 0) {
+        if      (strcmp(name, "host") == 0)     copy_value(c->upstream_host, sizeof(c->upstream_host), value);
+        else if (strcmp(name, "port") == 0)     copy_value(c->upstream_port, sizeof(c->upstream_port), value);
+        else if (strcmp(name, "mountpoint") == 0) copy_value(c->upstream_mount, sizeof(c->upstream_mount), value);
+        else if (strcmp(name, "user") == 0)     copy_value(c->upstream_user, sizeof(c->upstream_user), value);
+        else if (strcmp(name, "password") == 0) copy_value(c->upstream_password, sizeof(c->upstream_password), value);
+        else return 0;
+        return 1;
+    }
+    if (strcmp(section, "local") == 0) {
+        if      (strcmp(name, "host") == 0)            copy_value(c->local_host, sizeof(c->local_host), value);
+        else if (strcmp(name, "port") == 0)            copy_value(c->local_port, sizeof(c->local_port), value);
+        else if (strcmp(name, "mountpoint") == 0)      copy_value(c->local_mount, sizeof(c->local_mount), value);
+        else if (strcmp(name, "source_password") == 0) copy_value(c->source_password, sizeof(c->source_password), value);
+        else return 0;
+        return 1;
+    }
+    if (strcmp(section, "rover") == 0) {
+        if      (strcmp(name, "user") == 0)     copy_value(c->rover_user, sizeof(c->rover_user), value);
+        else if (strcmp(name, "password") == 0) copy_value(c->rover_password, sizeof(c->rover_password), value);
+        else if (strcmp(name, "seconds") == 0)  c->rover_seconds = strtol(value, NULL, 10);
+        else if (strcmp(name, "output") == 0)   copy_value(c->rover_output, sizeof(c->rover_output), value);
+        else return 0;
+        return 1;
+    }
+    return 0;
+}
+
+int nt_config_load(const char *path, ntrip_tool_config_t *config)
+{
+    memset(config, 0, sizeof(*config));
+    copy_value(config->upstream_port, sizeof(config->upstream_port), "2101");
+    copy_value(config->local_host, sizeof(config->local_host), "127.0.0.1");
+    copy_value(config->local_port, sizeof(config->local_port), "2101");
+    int rc = ini_parse(path, config_handler, config);
+    if (rc < 0) fprintf(stderr, "cannot open config '%s'\n", path);
+    else if (rc > 0) fprintf(stderr, "invalid config '%s' at line %d\n", path, rc);
+    return rc == 0 ? 0 : -1;
+}
+
+static int required(const char *value, const char *key)
+{
+    if (value[0]) return 0;
+    fprintf(stderr, "missing required config key: %s\n", key);
+    return -1;
+}
+
+int nt_config_validate_relay(const ntrip_tool_config_t *c)
+{
+    int rc = 0;
+    rc |= required(c->upstream_host, "upstream.host");
+    rc |= required(c->upstream_port, "upstream.port");
+    rc |= required(c->upstream_mount, "upstream.mountpoint");
+    rc |= required(c->upstream_user, "upstream.user");
+    rc |= required(c->upstream_password, "upstream.password");
+    rc |= required(c->local_host, "local.host");
+    rc |= required(c->local_port, "local.port");
+    rc |= required(c->local_mount, "local.mountpoint");
+    rc |= required(c->source_password, "local.source_password");
+    return rc == 0 ? 0 : -1;
+}
+
+int nt_config_validate_rover(const ntrip_tool_config_t *c)
+{
+    int rc = 0;
+    rc |= required(c->local_host, "local.host");
+    rc |= required(c->local_port, "local.port");
+    rc |= required(c->local_mount, "local.mountpoint");
+    rc |= required(c->rover_user, "rover.user");
+    rc |= required(c->rover_password, "rover.password");
+    return rc == 0 ? 0 : -1;
+}
 
 int nt_connect(const char *host, const char *port)
 {

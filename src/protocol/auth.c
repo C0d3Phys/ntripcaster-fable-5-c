@@ -81,6 +81,10 @@ static int auth_ini_handler(void *user, const char *section,
         return 1;
     }
 
+    /* [caster] es del modulo core/config.c — ignorar en silencio */
+    if (strcasecmp(section, "caster") == 0)
+        return 1;
+
     fprintf(stderr, "[auth] seccion desconocida en conf: [%s] (linea ignorada: %s)\n",
             section, name);
     return 1;   /* no aborta el parseo por una seccion rara */

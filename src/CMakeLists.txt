@@ -4,6 +4,7 @@ set(CORE_SOURCES
   core/broker.c
   core/mountpoint.c
   core/logger.c
+  core/config.c
   gnss/rtcm3_frame.c
   gnss/rtcm3_station.c
   gnss/rtcm3_msm.c

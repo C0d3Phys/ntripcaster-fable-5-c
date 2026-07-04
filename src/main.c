@@ -6,6 +6,7 @@
 #include <stdlib.h>
 
 #include "core/broker.h"
+#include "core/config.h"
 #include "core/io_engine.h"
 #include "core/logger.h"
 #include "protocol/auth.h"
@@ -56,19 +57,28 @@ static void main_tick(void *ctx)
 
 int main(int argc, char *argv[])
 {
-    int port = 2101;
-    if (argc > 1) port = atoi(argv[1]);
-
+    /*
+     * Configuración general: defaults < [caster] del conf < argv/env.
+     *   ./ntripcaster [puerto] [conf] [log]
+     */
     const char *conf_path = (argc > 2) ? argv[2] : DEFAULT_CONF_PATH;
     g_conf_path = conf_path;
 
-    /* Logger (punto 100.001): argv[3] = archivo de log opcional.
-     * Nivel por env: NTRIPCASTER_LOG=debug|info|warn|error */
-    const char *log_path = (argc > 3) ? argv[3] : DEFAULT_LOG_PATH;
-    log_init(log_path, log_level_from_str(getenv("NTRIPCASTER_LOG")));
+    caster_config_t cast;
+    config_defaults(&cast);
+    config_load(&cast, conf_path);          /* si falla, quedan defaults */
 
-    log_info("NtripCaster v%s  port=%d  conf=%s  log=%s",
-             APP_VERSION, port, conf_path, log_path);
+    int port = cast.port;
+    if (argc > 1) port = atoi(argv[1]);     /* argv pisa al conf */
+
+    /* Logger: archivo del conf (log_file), pisable por argv[3];
+     * nivel del conf (log_level), pisable por env NTRIPCASTER_LOG */
+    const char *log_path = (argc > 3) ? argv[3] : cast.log_file;
+    const char *env_lvl  = getenv("NTRIPCASTER_LOG");
+    log_init(log_path, log_level_from_str(env_lvl ? env_lvl : cast.log_level));
+
+    log_info("NtripCaster v%s  '%s'  %s:%d  conf=%s  log=%s",
+             APP_VERSION, cast.name, cast.bind_addr, port, conf_path, log_path);
 
     /*
      * Auth: carga inicial unica, antes de arrancar el io_engine (todavia
@@ -92,16 +102,23 @@ int main(int argc, char *argv[])
 
     broker_config_t cfg;
     memset(&cfg, 0, sizeof(cfg));
-    cfg.max_clients         = 1024;
-    cfg.max_sources         = 128;
-    cfg.client_timeout_s    = 60;
-    cfg.source_timeout_s    = 30;
-    cfg.handshake_timeout_s = 10;
+    cfg.max_clients         = cast.max_clients;
+    cfg.max_sources         = cast.max_sources;
+    cfg.client_timeout_s    = cast.client_timeout_s;
+    cfg.source_timeout_s    = cast.source_timeout_s;
+    cfg.handshake_timeout_s = cast.handshake_timeout_s;
+    cfg.port                = port;
+    snprintf(cfg.caster_name, sizeof(cfg.caster_name), "%s", cast.name);
+    snprintf(cfg.caster_operator, sizeof(cfg.caster_operator), "%s",
+             cast.operator_name);
+    snprintf(cfg.caster_country, sizeof(cfg.caster_country), "%s",
+             cast.country);
     broker_init(broker, &cfg);
 
     io_engine_t engine;
-    if (io_engine_init(&engine, broker, "0.0.0.0", port, 0) != 0) {
-        fprintf(stderr, "[main] io_engine_init failed\n");
+    if (io_engine_init(&engine, broker, cast.bind_addr, port,
+                       cast.num_threads) != 0) {
+        log_error("main: io_engine_init fallo (puerto %d ocupado?)", port);
         return 1;
     }
 

@@ -32,6 +32,13 @@ typedef struct {
     int      handshake_timeout_s;/* request incompleto por N segundos → kick */
     size_t   ring_size;          /* tamaño del ring buffer (ignorado si RING_SIZE está fijo) */
     char     admin_password[64];
+
+    /* Identidad del caster — sourcetable (CAS/NET) + header Server.
+     * Viene de la sección [caster] del conf (ver core/config.h). */
+    int      port;               /* puerto de escucha (para la CAS line) */
+    char     caster_name[64];
+    char     caster_operator[64];
+    char     caster_country[8];
 } broker_config_t;
 
 /* ── Estado global del broker ────────────────────────────────────── */

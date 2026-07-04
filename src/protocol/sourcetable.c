@@ -21,20 +21,29 @@ static int build_sourcetable_text(broker_t *b, char *buf, int max)
         if (_n > 0) pos += _n; \
     } while (0)
 
-    APPEND("CAS;localhost;2101;NtripCaster;unknown;0;DEU;0.00;0.00;\r\n");
-    APPEND("NET;NTRIPCASTER;NtripCaster;B;N;none;none;none;none\r\n");
+    /* Identidad desde [caster] del conf */
+    const char *cname = b->config.caster_name[0]     ? b->config.caster_name     : "NtripCaster";
+    const char *coper = b->config.caster_operator[0] ? b->config.caster_operator : "unknown";
+    const char *cctry = b->config.caster_country[0]  ? b->config.caster_country  : "DEU";
+    int         cport = b->config.port > 0           ? b->config.port            : 2101;
+
+    APPEND("CAS;%s;%d;%s;%s;0;%s;0.00;0.00;\r\n",
+           cname, cport, cname, coper, cctry);
+    APPEND("NET;%s;%s;B;N;none;none;none;none\r\n", cname, coper);
 
     for (int i = 0; i < count; i++) {
         sourcetable_entry_t *e = &entries[i];
-        APPEND("STR;%s;%s;%s;;%d;%s;NTRIPCASTER;DEU;%.4f;%.4f;%d;"
-               "0;NtripCaster;none;N;N;0;none\r\n",
+        APPEND("STR;%s;%s;%s;;%d;%s;%s;%s;%.4f;%.4f;%d;"
+               "0;%s;none;B;N;0;none\r\n",
                e->name,
                e->identifier[0] ? e->identifier : e->name,
                e->format[0] ? e->format : "RTCM 3.3",
                0,
                e->nav_system[0] ? e->nav_system : "GPS",
+               cname, cctry,
                e->lat, e->lon,
-               e->nmea);
+               e->nmea,
+               cname);
     }
 
     APPEND("ENDSOURCETABLE\r\n");
@@ -51,10 +60,12 @@ void sourcetable_handle_v1(io_engine_t *eng, conn_t *conn)
     char hdr[256];
     int  hlen = snprintf(hdr, sizeof(hdr),
         "SOURCETABLE 200 OK\r\n"
-        "Server: NtripCaster/0.1\r\n"
+        "Server: %s/1.0\r\n"
         "Content-Type: text/plain\r\n"
         "Content-Length: %d\r\n"
         "\r\n",
+        eng->broker->config.caster_name[0]
+            ? eng->broker->config.caster_name : "NtripCaster",
         blen);
 
     send_all(conn->fd, hdr,  (size_t)hlen);
@@ -90,23 +101,25 @@ void sourcetable_handle_v2(io_engine_t *eng, conn_t *conn, int browser)
                 e->nav_system[0] ? e->nav_system : "GPS");
         }
 
+        const char *cname = eng->broker->config.caster_name[0]
+                          ? eng->broker->config.caster_name : "NtripCaster";
         blen = snprintf(body, sizeof(body),
             "<!DOCTYPE html><html><head>"
             "<meta charset=\"utf-8\">"
-            "<title>NtripCaster Sourcetable</title>"
+            "<title>%s Sourcetable</title>"
             "<style>body{font-family:monospace;background:#111;color:#0f0;padding:16px}"
             "table{border-collapse:collapse;width:100%%}"
             "th,td{border:1px solid #333;padding:6px 12px;text-align:left}"
             "th{background:#222}</style>"
             "</head><body>"
-            "<h2>NtripCaster / Sourcetable</h2>"
+            "<h2>%s / Sourcetable</h2>"
             "<table><tr><th>Mountpoint</th><th>Format</th><th>Status</th>"
             "<th>Lat</th><th>Lon</th><th>Systems</th></tr>"
             "%s"
             "</table>"
             "<p style=\"color:#555\">%d mountpoints</p>"
             "</body></html>",
-            rows, count);
+            cname, cname, rows, count);
     } else {
         blen = build_sourcetable_text(eng->broker, body, (int)sizeof(body));
     }
@@ -114,12 +127,14 @@ void sourcetable_handle_v2(io_engine_t *eng, conn_t *conn, int browser)
     char hdr[256];
     int  hlen = snprintf(hdr, sizeof(hdr),
         "HTTP/1.1 200 OK\r\n"
-        "Server: NtripCaster/0.1\r\n"
+        "Server: %s/1.0\r\n"
         "Ntrip-Version: Ntrip/2.0\r\n"
         "Content-Type: %s\r\n"
         "Content-Length: %d\r\n"
         "Connection: close\r\n"
         "\r\n",
+        eng->broker->config.caster_name[0]
+            ? eng->broker->config.caster_name : "NtripCaster",
         browser ? "text/html; charset=utf-8" : "text/plain",
         blen);
 

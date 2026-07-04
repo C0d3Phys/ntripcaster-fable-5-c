@@ -1,8 +1,8 @@
 src/CMakeFiles/ntripcaster_core.dir/core/ring_buffer.c.o: \
- /mnt/c/Users/cesar/Desktop/Claude\ Cowork/ntripcaster/wsl-project-tested/src/core/ring_buffer.c \
+ /mnt/c/Users/ING_CESAR_TAPIA/Desktop/Claude\ Cowork/App/ntripcaster/wsl-project-tested/src/core/ring_buffer.c \
  /usr/include/stdc-predef.h \
- /mnt/c/Users/cesar/Desktop/Claude\ Cowork/ntripcaster/wsl-project-tested/src/core/ring_buffer.h \
- /usr/lib/gcc/x86_64-linux-gnu/13/include/stdint.h /usr/include/stdint.h \
+ /mnt/c/Users/ING_CESAR_TAPIA/Desktop/Claude\ Cowork/App/ntripcaster/wsl-project-tested/src/core/ring_buffer.h \
+ /usr/lib/gcc/x86_64-linux-gnu/15/include/stdint.h /usr/include/stdint.h \
  /usr/include/x86_64-linux-gnu/bits/libc-header-start.h \
  /usr/include/features.h /usr/include/features-time64.h \
  /usr/include/x86_64-linux-gnu/bits/wordsize.h \
@@ -18,8 +18,8 @@ src/CMakeFiles/ntripcaster_core.dir/core/ring_buffer.c.o: \
  /usr/include/x86_64-linux-gnu/bits/stdint-intn.h \
  /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h \
  /usr/include/x86_64-linux-gnu/bits/stdint-least.h \
- /usr/lib/gcc/x86_64-linux-gnu/13/include/stdatomic.h \
- /usr/lib/gcc/x86_64-linux-gnu/13/include/stddef.h \
+ /usr/lib/gcc/x86_64-linux-gnu/15/include/stdatomic.h \
+ /usr/lib/gcc/x86_64-linux-gnu/15/include/stddef.h \
  /usr/include/x86_64-linux-gnu/sys/types.h \
  /usr/include/x86_64-linux-gnu/bits/types/clock_t.h \
  /usr/include/x86_64-linux-gnu/bits/types/clockid_t.h \

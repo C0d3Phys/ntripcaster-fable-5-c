@@ -1,4 +1,5 @@
 file(REMOVE_RECURSE
+  "CMakeFiles/ntripcaster.dir/link.d"
   "CMakeFiles/ntripcaster.dir/main.c.o"
   "CMakeFiles/ntripcaster.dir/main.c.o.d"
   "ntripcaster"

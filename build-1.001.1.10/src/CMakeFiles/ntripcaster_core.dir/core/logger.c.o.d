@@ -1,7 +1,7 @@
 src/CMakeFiles/ntripcaster_core.dir/core/logger.c.o: \
- /mnt/c/Users/cesar/Desktop/Claude\ Cowork/ntripcaster/wsl-project-tested/src/core/logger.c \
+ /mnt/c/Users/ING_CESAR_TAPIA/Desktop/Claude\ Cowork/App/ntripcaster/wsl-project-tested/src/core/logger.c \
  /usr/include/stdc-predef.h \
- /mnt/c/Users/cesar/Desktop/Claude\ Cowork/ntripcaster/wsl-project-tested/src/core/logger.h \
+ /mnt/c/Users/ING_CESAR_TAPIA/Desktop/Claude\ Cowork/App/ntripcaster/wsl-project-tested/src/core/logger.h \
  /usr/include/stdio.h \
  /usr/include/x86_64-linux-gnu/bits/libc-header-start.h \
  /usr/include/features.h /usr/include/features-time64.h \
@@ -11,8 +11,8 @@ src/CMakeFiles/ntripcaster_core.dir/core/logger.c.o: \
  /usr/include/x86_64-linux-gnu/bits/long-double.h \
  /usr/include/x86_64-linux-gnu/gnu/stubs.h \
  /usr/include/x86_64-linux-gnu/gnu/stubs-64.h \
- /usr/lib/gcc/x86_64-linux-gnu/13/include/stddef.h \
- /usr/lib/gcc/x86_64-linux-gnu/13/include/stdarg.h \
+ /usr/lib/gcc/x86_64-linux-gnu/15/include/stddef.h \
+ /usr/lib/gcc/x86_64-linux-gnu/15/include/stdarg.h \
  /usr/include/x86_64-linux-gnu/bits/types.h \
  /usr/include/x86_64-linux-gnu/bits/typesizes.h \
  /usr/include/x86_64-linux-gnu/bits/time64.h \
@@ -48,6 +48,15 @@ src/CMakeFiles/ntripcaster_core.dir/core/logger.c.o: \
  /usr/include/x86_64-linux-gnu/bits/types/__sigset_t.h \
  /usr/include/pthread.h /usr/include/sched.h \
  /usr/include/x86_64-linux-gnu/bits/sched.h \
+ /usr/include/linux/sched/types.h /usr/include/linux/types.h \
+ /usr/include/x86_64-linux-gnu/asm/types.h \
+ /usr/include/asm-generic/types.h /usr/include/asm-generic/int-ll64.h \
+ /usr/include/x86_64-linux-gnu/asm/bitsperlong.h \
+ /usr/include/asm-generic/bitsperlong.h /usr/include/linux/posix_types.h \
+ /usr/include/linux/stddef.h \
+ /usr/include/x86_64-linux-gnu/asm/posix_types.h \
+ /usr/include/x86_64-linux-gnu/asm/posix_types_64.h \
+ /usr/include/asm-generic/posix_types.h \
  /usr/include/x86_64-linux-gnu/bits/types/struct_sched_param.h \
  /usr/include/x86_64-linux-gnu/bits/cpu-set.h \
  /usr/include/x86_64-linux-gnu/bits/pthreadtypes.h \

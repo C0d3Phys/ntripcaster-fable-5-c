@@ -1,4 +1,4 @@
-# Install script for directory: /mnt/c/Users/cesar/Desktop/Claude Cowork/ntripcaster/wsl-project-tested/src
+# Install script for directory: /mnt/c/Users/ING_CESAR_TAPIA/Desktop/Claude Cowork/App/ntripcaster/wsl-project-tested/src
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -37,8 +37,14 @@ if(NOT DEFINED CMAKE_CROSSCOMPILING)
   set(CMAKE_CROSSCOMPILING "FALSE")
 endif()
 
-# Set default install directory permissions.
+# Set path to fallback-tool for dependency-resolution.
 if(NOT DEFINED CMAKE_OBJDUMP)
   set(CMAKE_OBJDUMP "/usr/bin/objdump")
 endif()
 
+string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
+       "${CMAKE_INSTALL_MANIFEST_FILES}")
+if(CMAKE_INSTALL_LOCAL_ONLY)
+  file(WRITE "/mnt/c/Users/ING_CESAR_TAPIA/Desktop/Claude Cowork/App/ntripcaster/wsl-project-tested/build-1.001.1.10/src/install_local_manifest.txt"
+     "${CMAKE_INSTALL_MANIFEST_CONTENT}")
+endif()

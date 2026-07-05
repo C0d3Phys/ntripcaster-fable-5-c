@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -126,6 +128,15 @@ int main(int argc, char **argv)
     fprintf(stderr, "rover connected: %s:%s/%s as %s\n",
             config.local_host, config.local_port, config.local_mount,
             config.rover_user);
+
+    /* Mismo motivo que en ntrip_source_relay.c: sin timeout, si el
+     * mount se queda sin datos (source caido) read() se queda
+     * bloqueado para siempre y ni Ctrl+C ni el limite de duration
+     * se notan hasta que llegue el proximo byte. Con esto, a lo sumo
+     * 1s de latencia para salir limpio. */
+    struct timeval rcv_tv = { .tv_sec = 1, .tv_usec = 0 };
+    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &rcv_tv, sizeof(rcv_tv));
+
     uint8_t decode[DECODE_BUFFER_SIZE];
     size_t decode_len = 0;
     uint64_t bytes = 0, frames = 0, skipped = 0;
@@ -136,17 +147,17 @@ int main(int argc, char **argv)
         inspect(decode, &decode_len, response.payload, response.payload_len,
                 &frames, &skipped);
         bytes += response.payload_len;
-        if (capture) fwrite(response.payload, 1, response.payload_len, capture);
+        if (capture) { fwrite(response.payload, 1, response.payload_len, capture); fflush(capture); }
     }
     while (nt_running() && (duration <= 0 || time(NULL) - started < duration)) {
         ssize_t n = read(fd, buf, sizeof(buf));
         if (n > 0) {
             inspect(decode, &decode_len, buf, (size_t)n, &frames, &skipped);
             bytes += (uint64_t)n;
-            if (capture) fwrite(buf, 1, (size_t)n, capture);
+            if (capture) { fwrite(buf, 1, (size_t)n, capture); fflush(capture); }
             continue;
         }
-        if (n < 0 && errno == EINTR) continue;
+        if (n < 0 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)) continue;
         break;
     }
 

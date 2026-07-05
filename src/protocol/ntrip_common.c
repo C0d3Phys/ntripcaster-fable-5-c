@@ -77,7 +77,14 @@ void ntrip_send_resp(int fd, const char *resp, size_t len)
 
 void ntrip_debug_request(int fd, const char *buf)
 {
-    /* Copia solo los headers (hasta \r\n\r\n) con credenciales tapadas */
+    /* Copia solo los headers (hasta \r\n\r\n) con credenciales tapadas.
+     *
+     * A nivel INFO (no DEBUG) a propósito: el pedido es poder ver la
+     * cabecera completa de cada request (SOURCE o cliente) con el nivel
+     * de log normal, sin tener que levantar todo a NTRIPCASTER_LOG=debug
+     * -- que además loguearía cosas mucho más verbosas (dumps internos
+     * futuros, etc.). Las credenciales siempre quedan tapadas acá abajo,
+     * así que subir esto a INFO no expone nada sensible. */
     char masked[2048];
     size_t o = 0;
     const char *end = strstr(buf, "\r\n\r\n");
@@ -107,7 +114,7 @@ void ntrip_debug_request(int fd, const char *buf)
         masked[o++] = buf[i++];
     }
     masked[o] = '\0';
-    log_debug("ntrip: fd=%d -> request:\n%s", fd, masked);
+    log_info("ntrip: fd=%d -> request:\n%s", fd, masked);
 }
 
 /* ── Payload pipeleado con el handshake del source ──────────────────

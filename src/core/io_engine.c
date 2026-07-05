@@ -256,7 +256,7 @@ static void dispatch_client(io_engine_t *eng, conn_t *conn, uint32_t events)
         ssize_t filled = broker_client_fill(eng->broker, conn);
         if (filled < 0) {
             /* Lag excesivo — cliente demasiado lento */
-            fprintf(stderr, "[io] client fd=%d lag too high, closing\n", conn->fd);
+            log_warn("io: client fd=%d lag excesivo (ring overflow), cerrando", conn->fd);
             io_engine_conn_close(eng, conn);
             return;
         }
@@ -315,7 +315,8 @@ static void dispatch_handshake(io_engine_t *eng, conn_t *conn)
 
     /* Buffer lleno y aún no hay \r\n\r\n → request inválido */
     if (conn->read_len >= CONN_READ_BUF_SIZE - 1) {
-        fprintf(stderr, "[io] handshake overflow fd=%d, closing\n", conn->fd);
+        log_warn("io: handshake overflow fd=%d (request > %u bytes sin fin de headers), cerrando",
+                 conn->fd, (unsigned)(CONN_READ_BUF_SIZE - 1));
         io_engine_conn_close(eng, conn);
         return;
     }
@@ -570,8 +571,8 @@ static void *accept_loop(void *arg)
                  * FEATURE_relay_capacity_reload §1.1). Cerrarla activamente:
                  * falla ruidosa y honesta (§1.2 #2).
                  */
-                fprintf(stderr, "[io] work queue full, closing fd=%d\n",
-                        conn->fd);
+                log_error("io: work queue llena (cap=%d), cerrando fd=%d",
+                          IO_WORK_QUEUE_CAP, conn->fd);
                 io_engine_conn_close(eng, conn);
             }
         }
@@ -691,8 +692,8 @@ int io_engine_init(io_engine_t *engine, broker_t *broker,
         }
     }
 
-    printf("[io] listening on %s:%d  threads=%d\n",
-           engine->bind_addr, port, num_threads);
+    log_info("io: listening on %s:%d  threads=%d",
+             engine->bind_addr, port, num_threads);
     return 0;
 }
 
@@ -817,5 +818,5 @@ void io_engine_destroy(io_engine_t *engine)
         engine->epoll_fd = -1;
     }
 
-    printf("[io] engine destroyed\n");
+    log_info("io: engine destroyed");
 }

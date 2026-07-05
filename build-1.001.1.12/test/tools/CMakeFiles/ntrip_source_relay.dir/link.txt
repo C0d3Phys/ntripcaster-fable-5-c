@@ -1,0 +1,1 @@
+/usr/bin/cc -g CMakeFiles/ntrip_source_relay.dir/ntrip_source_relay.c.o -o ntrip_source_relay  libntrip_test_common.a ../../libinih_vendor.a 

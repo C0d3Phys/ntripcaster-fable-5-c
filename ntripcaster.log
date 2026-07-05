@@ -265,3 +265,59 @@
 2026-07-05 09:35:26.296 [INFO ] io: source fd=6 mp=BASE1 cerro la conexion (EOF)
 2026-07-05 09:35:42.112 [INFO ] stats: mount=BASE1 offline clientes=0  0.7 KB/s  frames+96 (tot 380)  corrupto+0B (tot 0)  tipos: 1124:120 1074:59 1084:59 1094:59 1114:59 1006:6 1230:6 1013:6 1033:6
 2026-07-05 09:42:27.701 [INFO ] main: SIGHUP recibido - recargando registro de auth
+2026-07-05 10:39:07.325 [INFO ] NtripCaster v1.001.1.12  'CasterCesar'  0.0.0.0:2101  conf=conf/ntripcaster.conf  log=ntripcaster.log
+2026-07-05 10:39:07.328 [INFO ] auth: registro cargado desde 'conf/ntripcaster.conf': 1 source(s), 2 cliente(s)
+2026-07-05 10:39:07.354 [INFO ] broker: initialized  max_clients=1024 max_sources=128
+2026-07-05 10:39:07.356 [INFO ] io: listening on 0.0.0.0:2101  threads=12
+2026-07-05 10:39:10.784 [INFO ] ntrip: fd=6 -> request:
+GET / HTTP/1.1
+Host: localhost:2101
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Accept-Language: es-ES,es;q=0.9,en-US;q=0.8,en;q=0.7
+Accept-Encoding: gzip, deflate, br, zstd
+Connection: keep-alive
+Upgrade-Insecure-Requests: 1
+Sec-Fetch-Dest: document
+Sec-Fetch-Mode: navigate
+Sec-Fetch-Site: none
+Sec-Fetch-User: ?1
+Priority: u=0, i
+2026-07-05 10:39:10.785 [INFO ] broker: conn_free fd=6 type=unknown  rx=0 tx=0 bytes
+2026-07-05 10:39:59.667 [INFO ] ntrip: fd=6 -> request:
+SOURCE *** /BASE1
+Host: localhost:2101
+Source-Agent: NTRIP sNTRIP/3.05.00n
+SNIP-Agent: [/wEVAL/3.05.00/O000] [ /  /  / ] 
+SNIP-AccountId: OPEN
+STR: ;RTCM 3;PENDING;;;SNIP;XXX;0.0;0.0;0;0;sNTRIP;none;N;N;0;none;
+Accept: */*
+Connection: close
+2026-07-05 10:39:59.667 [INFO ] ntrip: SOURCE v1 fd=6 mp=BASE1 addr=127.0.0.1:40358
+2026-07-05 10:39:59.667 [INFO ] mount:BASE1 source attached fd=6 addr=127.0.0.1:40358
+2026-07-05 10:39:59.667 [INFO ] ntrip: source v1 registrado fd=6 mp=BASE1
+2026-07-05 10:40:07.040 [INFO ] stats: mount=BASE1 ONLINE clientes=0  0.3 KB/s  frames+49 (tot 49)  corrupto+0B (tot 0)  tipos: 1124:16 1006:1 1230:1 1074:8 1084:7 1094:7 1114:7 1013:1 1033:1
+2026-07-05 10:40:37.144 [INFO ] stats: mount=BASE1 ONLINE clientes=0  1.5 KB/s  frames+272 (tot 321)  corrupto+0B (tot 0)  tipos: 1124:74 1006:4 1230:4 1074:37 1084:37 1094:37 1114:37 1013:4 1033:4 1042:19 1045:17 1046:17 1019:16 1020:11 1044:3
+2026-07-05 10:41:07.078 [INFO ] stats: mount=BASE1 ONLINE clientes=0  1.3 KB/s  frames+190 (tot 511)  corrupto+0B (tot 0)  tipos: 1124:134 1006:7 1230:7 1074:67 1084:67 1094:66 1114:66 1013:7 1033:7 1042:19 1045:17 1046:17 1019:16 1020:11 1044:3
+2026-07-05 10:41:14.159 [INFO ] ntrip: fd=7 -> request:
+GET /BASE1 HTTP/1.0
+User-Agent: NTRIP RTKLIB/2.4.3
+Authorization: Basic ***
+2026-07-05 10:41:14.160 [INFO ] ntrip: CLIENT fd=7 mp=BASE1 user=rover1 v1 addr=127.0.0.1:38106
+2026-07-05 10:41:14.160 [INFO ] mount:BASE1 client subscribed fd=7 addr=127.0.0.1:38106  total=1
+2026-07-05 10:41:14.160 [INFO ] ntrip: client suscrito fd=7 mp=BASE1
+2026-07-05 10:41:37.150 [INFO ] stats: mount=BASE1 ONLINE clientes=1  1.3 KB/s  frames+190 (tot 701)  corrupto+0B (tot 0)  tipos: 1124:194 1006:10 1230:10 1074:96 1084:96 1094:96 1114:96 1013:10 1033:10 1042:19 1045:17 1046:17 1019:16 1020:11 1044:3
+2026-07-05 10:42:08.224 [INFO ] stats: mount=BASE1 ONLINE clientes=1  1.3 KB/s  frames+198 (tot 899)  corrupto+0B (tot 0)  tipos: 1124:256 1006:13 1230:13 1074:127 1084:127 1094:127 1114:127 1013:13 1033:13 1042:19 1045:17 1046:17 1019:16 1020:11 1044:3
+2026-07-05 10:42:38.066 [INFO ] stats: mount=BASE1 ONLINE clientes=1  1.6 KB/s  frames+291 (tot 1190)  corrupto+0B (tot 0)  tipos: 1124:320 1006:16 1230:16 1074:160 1084:160 1094:160 1114:160 1013:16 1033:16 1042:38 1045:34 1046:34 1019:32 1020:22 1044:6
+2026-07-05 10:43:08.083 [INFO ] stats: mount=BASE1 ONLINE clientes=1  1.3 KB/s  frames+186 (tot 1376)  corrupto+0B (tot 0)  tipos: 1124:378 1006:19 1230:19 1074:189 1084:189 1094:189 1114:189 1013:19 1033:19 1042:38 1045:34 1046:34 1019:32 1020:22 1044:6
+2026-07-05 10:43:38.118 [INFO ] stats: mount=BASE1 ONLINE clientes=1  1.3 KB/s  frames+188 (tot 1564)  corrupto+0B (tot 0)  tipos: 1124:438 1006:22 1230:22 1074:218 1084:218 1094:218 1114:218 1013:22 1033:22 1042:38 1045:34 1046:34 1019:32 1020:22 1044:6
+2026-07-05 10:44:02.859 [WARN ] io: shutdown -- cerrando conexion residual fd=7 tipo=client mp=BASE1 (rx=0 tx=471450)
+2026-07-05 10:44:02.860 [INFO ] mount:BASE1 client unsubscribed fd=7  remaining=0
+2026-07-05 10:44:02.860 [INFO ] broker: conn_free fd=7 type=client  rx=0 tx=471450 bytes
+2026-07-05 10:44:02.860 [WARN ] io: shutdown -- cerrando conexion residual fd=6 tipo=source mp=BASE1 (rx=342088 tx=0)
+2026-07-05 10:44:02.861 [INFO ] mount:BASE1 source detached fd=6  relayed=342088 bytes / 1719 frames
+2026-07-05 10:44:02.861 [INFO ] broker: conn_free fd=6 type=source  rx=342088 tx=0 bytes
+2026-07-05 10:44:02.861 [INFO ] io: shutdown -- 2 conexion(es) residual(es) cerradas
+2026-07-05 10:44:02.861 [INFO ] io: engine destroyed
+2026-07-05 10:44:02.862 [INFO ] broker: destroyed
+2026-07-05 10:44:02.865 [INFO ] main: bye

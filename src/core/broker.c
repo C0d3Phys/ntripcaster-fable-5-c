@@ -2,6 +2,7 @@
  * broker.c — Implementación del broker principal
  */
 #include "broker.h"
+#include "logger.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -45,15 +46,15 @@ void broker_init(broker_t *b, const broker_config_t *cfg)
     pthread_mutex_init(&b->conns_lock, NULL);
     b->conns_head = NULL;
 
-    printf("[broker] initialized  max_clients=%d max_sources=%d\n",
-           b->config.max_clients, b->config.max_sources);
+    log_info("broker: initialized  max_clients=%d max_sources=%d",
+             b->config.max_clients, b->config.max_sources);
 }
 
 void broker_destroy(broker_t *b)
 {
     mp_registry_destroy(&b->mounts);
     pthread_mutex_destroy(&b->conns_lock);
-    printf("[broker] destroyed\n");
+    log_info("broker: destroyed");
 }
 
 /* ── Conexiones ───────────────────────────────────────────────────── */
@@ -82,7 +83,7 @@ conn_t *broker_conn_alloc(broker_t *b, int fd, const char *remote_addr)
 
     atomic_fetch_add(&b->total_connections, 1);
 
-    printf("[broker] conn_alloc fd=%d addr=%s\n", fd, c->remote_addr);
+    log_debug("broker: conn_alloc fd=%d addr=%s", fd, c->remote_addr);
     return c;
 }
 
@@ -110,10 +111,10 @@ void broker_conn_free(broker_t *b, conn_t *conn)
         }
     }
 
-    printf("[broker] conn_free fd=%d type=%s  rx=%llu tx=%llu bytes\n",
-           conn->fd, conn_type_name(conn->type),
-           (unsigned long long)conn->bytes_rx,
-           (unsigned long long)conn->bytes_tx);
+    log_info("broker: conn_free fd=%d type=%s  rx=%llu tx=%llu bytes",
+             conn->fd, conn_type_name(conn->type),
+             (unsigned long long)conn->bytes_rx,
+             (unsigned long long)conn->bytes_tx);
 
     free(conn);
 }
@@ -125,20 +126,21 @@ int broker_source_register(broker_t *b, conn_t *conn, const char *mountpoint_nam
     /* Enforce real de max_sources (antes era solo decorativo en el log —
      * FEATURE_relay_capacity_reload §1.2 #1) */
     if (atomic_load(&b->active_sources) >= b->config.max_sources) {
-        fprintf(stderr, "[broker] max_sources (%d) alcanzado, rechazando\n",
-                b->config.max_sources);
+        log_warn("broker: max_sources (%d) alcanzado, rechazando mp=%s fd=%d",
+                 b->config.max_sources, mountpoint_name, conn->fd);
         return -1;
     }
 
     mountpoint_t *mp = mp_get_or_create(&b->mounts, mountpoint_name);
     if (!mp) {
-        fprintf(stderr, "[broker] mount limit reached, rejecting source\n");
+        log_warn("broker: limite de mountpoints alcanzado, rechazando source "
+                 "mp=%s fd=%d", mountpoint_name, conn->fd);
         return -1;
     }
 
     if (mp_source_attach(mp, conn) != 0) {
-        fprintf(stderr, "[broker] mount '%s' already has a source\n",
-                mountpoint_name);
+        log_warn("broker: mount '%s' ya tiene un source activo (fd=%d rechazado)",
+                 mountpoint_name, conn->fd);
         return -1;
     }
 
@@ -154,21 +156,21 @@ int broker_client_register(broker_t *b, conn_t *conn, const char *mountpoint_nam
 {
     /* Enforce real de max_clients (FEATURE_relay_capacity_reload §1.2 #1) */
     if (atomic_load(&b->active_clients) >= b->config.max_clients) {
-        fprintf(stderr, "[broker] max_clients (%d) alcanzado, rechazando\n",
-                b->config.max_clients);
+        log_warn("broker: max_clients (%d) alcanzado, rechazando mp=%s fd=%d",
+                 b->config.max_clients, mountpoint_name, conn->fd);
         return -1;
     }
 
     mountpoint_t *mp = mp_find(&b->mounts, mountpoint_name);
     if (!mp || !mp->active) {
-        fprintf(stderr, "[broker] mount '%s' not found or no source\n",
-                mountpoint_name);
+        log_warn("broker: mount '%s' no existe o sin source activo "
+                 "(cliente fd=%d rechazado)", mountpoint_name, conn->fd);
         return -1;
     }
 
     if (mp_client_subscribe(mp, conn) != 0) {
-        fprintf(stderr, "[broker] mount '%s' client limit reached\n",
-                mountpoint_name);
+        log_warn("broker: mount '%s' alcanzo el limite de clientes "
+                 "(fd=%d rechazado)", mountpoint_name, conn->fd);
         return -1;
     }
 
@@ -257,8 +259,8 @@ const char *broker_nearest(broker_t *b, double lat, double lon)
     }
 
     if (best) {
-        printf("[broker] nearest to (%.4f,%.4f) → %s (%.1f km)\n",
-               lat, lon, best->name, best_dist);
+        log_info("broker: nearest to (%.4f,%.4f) -> %s (%.1f km)",
+                 lat, lon, best->name, best_dist);
         return best->name;
     }
     return NULL;

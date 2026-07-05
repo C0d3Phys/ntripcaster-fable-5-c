@@ -4,6 +4,7 @@
 #include "sourcetable.h"
 #include "ntrip_common.h"
 #include "../core/broker.h"
+#include "../core/logger.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -71,8 +72,7 @@ void sourcetable_handle_v1(io_engine_t *eng, conn_t *conn)
     send_all(conn->fd, hdr,  (size_t)hlen);
     send_all(conn->fd, body, (size_t)blen);
 
-    printf("[ntrip] sourcetable v1 -> fd=%d  %d bytes\n",
-           conn->fd, blen);
+    log_debug("ntrip: sourcetable v1 -> fd=%d  %d bytes", conn->fd, blen);
 
     io_engine_conn_close(eng, conn);
 }
@@ -141,8 +141,7 @@ void sourcetable_handle_v2(io_engine_t *eng, conn_t *conn, int browser)
     send_all(conn->fd, hdr,  (size_t)hlen);
     send_all(conn->fd, body, (size_t)blen);
 
-    printf("[ntrip] sourcetable %s -> fd=%d\n",
-           browser ? "html" : "v2", conn->fd);
+    log_debug("ntrip: sourcetable %s -> fd=%d", browser ? "html" : "v2", conn->fd);
 
     io_engine_conn_close(eng, conn);
 }

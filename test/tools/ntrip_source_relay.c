@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -135,12 +136,36 @@ int main(int argc, char **argv)
     }
     long long started = (long long)time(NULL);
 
+    /*
+     * Timeout de recepcion en el socket upstream -- SOLO a partir de
+     * aca (no antes del handshake/nt_read_response, que ya maneja sus
+     * propios reintentos y no espera este comportamiento).
+     *
+     * Sin esto, si el mount upstream se queda sin source (el feeder
+     * murio, el receptor GNSS se desconecto, etc.) la conexion GET de
+     * este relay NO se cierra sola -- el caster no desconecta clientes
+     * solo porque el source desaparecio. recv() se queda bloqueado
+     * para siempre esperando datos que no van a llegar, y
+     * while(nt_running()) nunca se vuelve a evaluar porque nunca
+     * retorna: SIGINT/SIGTERM solo marcan el flag pero no interrumpen
+     * el recv() bloqueado (bug real encontrado armando el harness de
+     * test: el relay necesitaba kill -9 para morir, y perdia hasta 4KB
+     * de captura sin flushear en el proceso).
+     *
+     * Con este timeout, recv() vuelve cada 1s con EAGAIN/EWOULDBLOCK
+     * aunque no haya datos, dandole al loop la chance de re-chequear
+     * nt_running() y salir limpio (fclose + meta) en <=1s tras la senal.
+     */
+    struct timeval rcv_tv = { .tv_sec = 1, .tv_usec = 0 };
+    setsockopt(upstream, SOL_SOCKET, SO_RCVTIMEO, &rcv_tv, sizeof(rcv_tv));
+
     uint64_t total = 0;
     if (upstream_response.payload_len) {
         if (nt_send_all(local, upstream_response.payload,
                         upstream_response.payload_len) != 0) goto failed;
         total += upstream_response.payload_len;
         fwrite(upstream_response.payload, 1, upstream_response.payload_len, capture);
+        fflush(capture);
     }
     fprintf(stderr, "relay active: %s:%s/%s -> %s:%s/%s\n",
             config.upstream_host, config.upstream_port, config.upstream_mount,
@@ -153,9 +178,16 @@ int main(int argc, char **argv)
             if (nt_send_all(local, buf, (size_t)n) != 0) goto failed;
             total += (uint64_t)n;
             fwrite(buf, 1, (size_t)n, capture);
+            /* fflush por chunk: cuesta poco (1 syscall write() por
+             * chunk de red, no por byte) y garantiza que un kill
+             * abrupto o el timeout de arriba nunca pierdan datos que
+             * ya se le mandaron al caster local -- clave para que las
+             * capturas de relay/rover sean comparables byte a byte. */
+            fflush(capture);
             continue;
         }
-        if (n < 0 && errno == EINTR) continue;
+        if (n < 0 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK))
+            continue;
         fprintf(stderr, "upstream stream ended after %llu bytes\n",
                 (unsigned long long)total);
         break;

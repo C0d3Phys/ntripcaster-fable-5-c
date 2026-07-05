@@ -1,0 +1,155 @@
+Start testing: Jul 05 10:44 CST
+----------------------------------------------------------
+1/4 Testing: relay_rover_compare_e2e
+1/4 Test: relay_rover_compare_e2e
+Command: "/usr/bin/bash" "/mnt/c/Users/cesar/Desktop/Claude Cowork/ntripcaster/wsl-project-tested/test/cases/t_relay_rover_compare.sh"
+Directory: /mnt/c/Users/cesar/Desktop/Claude Cowork/ntripcaster/wsl-project-tested/build-1.001.1.12/test
+"relay_rover_compare_e2e" start time: Jul 05 10:44 CST
+Output:
+----------------------------------------------------------
+=== 1. Arrancando caster en 127.0.0.1:54961 ===
+2026-07-05 10:44:38.417 [INFO ] NtripCaster v1.001.1.12  'TestCaster'  127.0.0.1:54961  conf=/tmp/ntripcaster_test_FLK7lH.conf  log=/tmp/ntrip_e2e_test_gjLqFU/caster.log
+2026-07-05 10:44:38.417 [INFO ] auth: registro cargado desde '/tmp/ntripcaster_test_FLK7lH.conf': 2 source(s), 2 cliente(s)
+2026-07-05 10:44:38.445 [INFO ] broker: initialized  max_clients=64 max_sources=16
+2026-07-05 10:44:38.446 [INFO ] io: listening on 127.0.0.1:54961  threads=12
+2026-07-05 10:44:38.566 [DEBUG] broker: conn_alloc fd=7 addr=127.0.0.1:40882
+2026-07-05 10:44:38.566 [INFO ] broker: conn_free fd=7 type=unknown  rx=0 tx=0 bytes
+=== 2. Empujando RTCM3 sintetico a FEED (upstream) ===
+2026-07-05 10:44:38.620 [DEBUG] broker: conn_alloc fd=7 addr=127.0.0.1:40896
+2026-07-05 10:44:38.620 [INFO ] ntrip: fd=7 -> request:
+SOURCE *** /FEED
+Source-Agent: mk_rtcm.py/1.0
+2026-07-05 10:44:38.620 [INFO ] ntrip: SOURCE v1 fd=7 mp=FEED addr=127.0.0.1:40896
+2026-07-05 10:44:38.620 [INFO ] mount:FEED source attached fd=7 addr=127.0.0.1:40896
+2026-07-05 10:44:38.620 [DEBUG] ntrip: fd=7 <- ICY 200 OK
+2026-07-05 10:44:38.620 [INFO ] ntrip: source v1 registrado fd=7 mp=FEED
+=== 3. Relay: FEED -> BASE1 ===
+2026-07-05 10:44:40.075 [DEBUG] broker: conn_alloc fd=8 addr=127.0.0.1:44182
+2026-07-05 10:44:40.075 [INFO ] ntrip: fd=8 -> request:
+GET /FEED HTTP/1.0
+User-Agent: NTRIP ntripcaster-test-relay/1.0
+Authorization: Basic ***
+Accept: */*
+Connection: close
+2026-07-05 10:44:40.075 [INFO ] ntrip: CLIENT fd=8 mp=FEED user=relay_user v1 addr=127.0.0.1:44182
+2026-07-05 10:44:40.075 [INFO ] mount:FEED client subscribed fd=8 addr=127.0.0.1:44182  total=1
+2026-07-05 10:44:40.075 [DEBUG] ntrip: fd=8 <- ICY 200 OK
+2026-07-05 10:44:40.075 [INFO ] ntrip: client suscrito fd=8 mp=FEED
+2026-07-05 10:44:40.075 [DEBUG] broker: conn_alloc fd=9 addr=127.0.0.1:44192
+2026-07-05 10:44:40.075 [INFO ] ntrip: fd=9 -> request:
+SOURCE *** /BASE1
+Source-Agent: ntripcaster-test-relay/1.0
+2026-07-05 10:44:40.075 [INFO ] ntrip: SOURCE v1 fd=9 mp=BASE1 addr=127.0.0.1:44192
+2026-07-05 10:44:40.075 [INFO ] mount:BASE1 source attached fd=9 addr=127.0.0.1:44192
+2026-07-05 10:44:40.076 [DEBUG] ntrip: fd=9 <- ICY 200 OK
+2026-07-05 10:44:40.076 [INFO ] ntrip: source v1 registrado fd=9 mp=BASE1
+=== 4. Rover consumiendo BASE1 por 8s ===
+2026-07-05 10:44:41.578 [DEBUG] broker: conn_alloc fd=10 addr=127.0.0.1:44196
+2026-07-05 10:44:41.578 [INFO ] ntrip: fd=10 -> request:
+GET /BASE1 HTTP/1.0
+User-Agent: NTRIP ntripcaster-test-rover/1.0
+Authorization: Basic ***
+Accept: */*
+2026-07-05 10:44:41.578 [INFO ] ntrip: CLIENT fd=10 mp=BASE1 user=rover_test v1 addr=127.0.0.1:44196
+2026-07-05 10:44:41.578 [INFO ] mount:BASE1 client subscribed fd=10 addr=127.0.0.1:44196  total=1
+2026-07-05 10:44:41.578 [DEBUG] ntrip: fd=10 <- ICY 200 OK
+2026-07-05 10:44:41.578 [INFO ] ntrip: client suscrito fd=10 mp=BASE1
+2026-07-05 10:44:49.010 [INFO ] mount:BASE1 client unsubscribed fd=10  remaining=0
+2026-07-05 10:44:49.010 [INFO ] broker: conn_free fd=10 type=client  rx=0 tx=8880 bytes
+=== 5. Deteniendo feeder y relay (esperando cierre limpio) ===
+2026-07-05 10:44:49.012 [INFO ] io: source fd=7 mp=FEED cerro la conexion (EOF)
+2026-07-05 10:44:49.012 [INFO ] mount:FEED source detached fd=7  relayed=6220 bytes / 311 frames
+2026-07-05 10:44:49.012 [INFO ] broker: conn_free fd=7 type=source  rx=6220 tx=0 bytes
+2026-07-05 10:44:49.012 [INFO ] io: source fd=9 mp=BASE1 cerro la conexion (EOF)
+2026-07-05 10:44:49.012 [INFO ] mount:BASE1 source detached fd=9  relayed=5340 bytes / 267 frames
+2026-07-05 10:44:49.012 [INFO ] broker: conn_free fd=9 type=source  rx=5340 tx=0 bytes
+2026-07-05 10:44:49.012 [INFO ] mount:FEED client unsubscribed fd=8  remaining=0
+2026-07-05 10:44:49.012 [INFO ] broker: conn_free fd=8 type=client  rx=0 tx=10680 bytes
+=== 6. Comparando capturas (/tmp/ntrip_e2e_test_gjLqFU/capture_rtcm3_bin_UTC/20260705T164440Z) ===
+relay: bytes=5340 frames=267 corrupt_bytes=0
+rover: bytes=4440 frames=222 corrupt_bytes=0
+UTC overlap: 8 seconds
+alignment: before_rover=45 common=222 lost_inside=0 after_rover=0 rover_unmatched=0
+similarity_in_common_span=100.000%
+PASS: relay+rover+compare end-to-end, lost_inside=0
+2026-07-05 10:44:49.023 [INFO ] io: engine destroyed
+2026-07-05 10:44:49.023 [INFO ] broker: destroyed
+2026-07-05 10:44:49.026 [INFO ] main: bye
+<end of output>
+Test time =  10.96 sec
+----------------------------------------------------------
+Test Passed.
+"relay_rover_compare_e2e" end time: Jul 05 10:44 CST
+"relay_rover_compare_e2e" time elapsed: 00:00:10
+----------------------------------------------------------
+
+2/4 Testing: ntrip_tools_help_relay
+2/4 Test: ntrip_tools_help_relay
+Command: "/mnt/c/Users/cesar/Desktop/Claude Cowork/ntripcaster/wsl-project-tested/build-1.001.1.12/test/tools/ntrip_source_relay" "--help"
+Directory: /mnt/c/Users/cesar/Desktop/Claude Cowork/ntripcaster/wsl-project-tested/build-1.001.1.12/test/tools
+"ntrip_tools_help_relay" start time: Jul 05 10:44 CST
+Output:
+----------------------------------------------------------
+Usage:
+  /mnt/c/Users/cesar/Desktop/Claude Cowork/ntripcaster/wsl-project-tested/build-1.001.1.12/test/tools/ntrip_source_relay --config FILE
+  /mnt/c/Users/cesar/Desktop/Claude Cowork/ntripcaster/wsl-project-tested/build-1.001.1.12/test/tools/ntrip_source_relay UP_HOST UP_PORT UP_MOUNT UP_USER LOCAL_HOST LOCAL_PORT LOCAL_MOUNT
+
+Required environment variables:
+  UPSTREAM_PASS       Password used to consume the upstream caster
+  LOCAL_SOURCE_PASS   SOURCE password configured in the local caster
+
+Example:
+  UPSTREAM_PASS=secret LOCAL_SOURCE_PASS=passbase123 \
++  /mnt/c/Users/cesar/Desktop/Claude Cowork/ntripcaster/wsl-project-tested/build-1.001.1.12/test/tools/ntrip_source_relay caster.example 2101 REMOTE user 127.0.0.1 2101 BASE1
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"ntrip_tools_help_relay" end time: Jul 05 10:44 CST
+"ntrip_tools_help_relay" time elapsed: 00:00:00
+----------------------------------------------------------
+
+3/4 Testing: ntrip_tools_help_rover
+3/4 Test: ntrip_tools_help_rover
+Command: "/mnt/c/Users/cesar/Desktop/Claude Cowork/ntripcaster/wsl-project-tested/build-1.001.1.12/test/tools/ntrip_rover_client" "--help"
+Directory: /mnt/c/Users/cesar/Desktop/Claude Cowork/ntripcaster/wsl-project-tested/build-1.001.1.12/test/tools
+"ntrip_tools_help_rover" start time: Jul 05 10:44 CST
+Output:
+----------------------------------------------------------
+Usage:
+  /mnt/c/Users/cesar/Desktop/Claude Cowork/ntripcaster/wsl-project-tested/build-1.001.1.12/test/tools/ntrip_rover_client --config FILE
+  /mnt/c/Users/cesar/Desktop/Claude Cowork/ntripcaster/wsl-project-tested/build-1.001.1.12/test/tools/ntrip_rover_client HOST PORT MOUNT USER [SECONDS] [OUTPUT.bin]
+
+Required environment variable:
+  LOCAL_ROVER_PASS    Password configured for USER on MOUNT
+
+SECONDS=0 (default) runs until Ctrl+C. OUTPUT.bin is optional.
+
+Example:
+  LOCAL_ROVER_PASS=passrover1 /mnt/c/Users/cesar/Desktop/Claude Cowork/ntripcaster/wsl-project-tested/build-1.001.1.12/test/tools/ntrip_rover_client 127.0.0.1 2101 BASE1 rover1 30 capture.rtcm3
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"ntrip_tools_help_rover" end time: Jul 05 10:44 CST
+"ntrip_tools_help_rover" time elapsed: 00:00:00
+----------------------------------------------------------
+
+4/4 Testing: ntrip_tools_help_compare
+4/4 Test: ntrip_tools_help_compare
+Command: "/mnt/c/Users/cesar/Desktop/Claude Cowork/ntripcaster/wsl-project-tested/build-1.001.1.12/test/tools/ntrip_capture_compare" "--help"
+Directory: /mnt/c/Users/cesar/Desktop/Claude Cowork/ntripcaster/wsl-project-tested/build-1.001.1.12/test/tools
+"ntrip_tools_help_compare" start time: Jul 05 10:44 CST
+Output:
+----------------------------------------------------------
+Usage: /mnt/c/Users/cesar/Desktop/Claude Cowork/ntripcaster/wsl-project-tested/build-1.001.1.12/test/tools/ntrip_capture_compare SESSION_DIR
+Compares SESSION_DIR/relay_rtcm3.bin with rover_rtcm3.bin.
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"ntrip_tools_help_compare" end time: Jul 05 10:44 CST
+"ntrip_tools_help_compare" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Jul 05 10:44 CST

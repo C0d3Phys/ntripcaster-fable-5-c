@@ -1,0 +1,2 @@
+/usr/bin/ar qc libntrip_test_common.a CMakeFiles/ntrip_test_common.dir/ntrip_tool_common.c.o
+/usr/bin/ranlib libntrip_test_common.a

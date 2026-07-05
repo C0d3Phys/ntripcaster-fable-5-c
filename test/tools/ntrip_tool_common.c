@@ -231,23 +231,41 @@ int nt_send_all(int fd, const void *data, size_t len)
  *
  * Hay dos estilos posibles y NO se puede asumir uno solo:
  *
- *   - NTRIP v1 / ICY (la mayoría de casters reales, ej. SNIP): una
- *     única línea de estado terminada en UN SOLO "\r\n" -- p.ej.
- *     "ICY 200 OK\r\n" -- y el stream RTCM3 binario arranca
- *     INMEDIATAMENTE después, sin línea en blanco. Si acá esperáramos
- *     "\r\n\r\n" (como HTTP), nos quedaríamos leyendo datos binarios
- *     buscando un patrón que puede no aparecer nunca, hasta desbordar
- *     el buffer de header (bug real: contra nuestro propio caster
- *     local funcionaba porque manda "ICY 200 OK\r\n\r\n" con el CRLF
- *     extra, pero contra SNIP fallaba con "response header exceeds
- *     16384 bytes").
  *   - HTTP real (NTRIP v2: GET/SOURCE POST con headers, ej.
- *     "HTTP/1.1 200 OK\r\nContent-Type: ...\r\n\r\n"): ahí SÍ hay que
- *     esperar la línea en blanco antes de que empiece el payload.
+ *     "HTTP/1.1 200 OK\r\nContent-Type: ...\r\n\r\n"): headers completos,
+ *     termina siempre en línea en blanco "\r\n\r\n".
+ *   - NTRIP v1 / ICY: una única línea de estado terminada en "\r\n".
+ *     Acá hay DOS variantes reales, y no se puede asumir ninguna:
+ *       a) SNIP y la mayoría de casters reales: "ICY 200 OK\r\n" y el
+ *          stream RTCM3 binario arranca INMEDIATAMENTE después, SIN
+ *          línea en blanco.
+ *       b) Nuestro propio caster (ntrip_v1.c / ntrip_common.c): manda
+ *          "ICY 200 OK\r\n\r\n" -- una línea en blanco de cortesía
+ *          extra, estilo HTTP, aunque no vaya prefijado con "HTTP/".
  *
- * Se distingue mirando el primer renglón: si arranca con "HTTP/" es
- * el caso HTTP (doble CRLF); cualquier otra cosa (ICY, o lo que sea)
- * se trata como línea única -- el primer "\r\n" ya cierra el header.
+ * Primer bug (ya corregido): esperar siempre "\r\n\r\n" como si todo
+ * fuera HTTP rompía contra (a) -- SNIP nunca manda esa línea en blanco,
+ * así que el parser se quedaba leyendo binario buscando un patrón que
+ * no iba a aparecer, hasta desbordar el buffer ("response header
+ * exceeds 16384 bytes").
+ *
+ * Segundo bug (el que se corrige acá): asumir que el primer "\r\n"
+ * SIEMPRE cierra el header rompía contra (b) -- el "\r\n" sobrante de
+ * la línea en blanco de nuestro propio caster quedaba mal clasificado
+ * como 2 bytes de payload RTCM3, contándose como corrupto/saltado en
+ * ntrip_rover_client (esto es lo que explica el "corrupt_bytes=2" visto
+ * en la prueba real contra SNIP -- no viene de SNIP, viene de la
+ * respuesta "ICY 200 OK\r\n\r\n" de ESTE caster al propio rover).
+ *
+ * Fix: al encontrar el primer "\r\n" de una línea que no es HTTP,
+ * esperar hasta 2 bytes más (¡nunca más que eso!) para decidir si
+ * también viene una línea en blanco pegada:
+ *   - si los 2 bytes siguientes son "\r\n" -> consumirlos como parte
+ *     del header (variante b).
+ *   - si no -> el header ya terminó ahí, todo lo demás es payload
+ *     (variante a, SNIP).
+ * Esto acota la espera a un máximo de 2 bytes extra, nunca al tamaño
+ * completo de un frame RTCM3 -- no reintroduce el primer bug.
  */
 int nt_read_response(int fd, ntrip_response_t *response)
 {
@@ -255,7 +273,8 @@ int nt_read_response(int fd, ntrip_response_t *response)
     uint8_t buf[NTRIP_TOOL_HEADER_MAX];
     size_t used = 0;
     int    style_known = 0;   /* ya vimos el primer \r\n y decidimos el estilo */
-    int    http_style  = 0;   /* 1 = esperar "\r\n\r\n"; 0 = una sola línea */
+    int    http_style  = 0;   /* 1 = esperar "\r\n\r\n"; 0 = linea unica (ICY) */
+    size_t line_end    = 0;   /* indice del '\n' del primer \r\n (solo ICY) */
 
     while (used < sizeof(buf)) {
         ssize_t n = recv(fd, buf + used, sizeof(buf) - used, 0);
@@ -267,24 +286,39 @@ int nt_read_response(int fd, ntrip_response_t *response)
             for (size_t i = 1; i < used; i++) {
                 if (buf[i - 1] != '\r' || buf[i] != '\n')
                     continue;
-
                 style_known = 1;
                 http_style  = (used >= 5 && memcmp(buf, "HTTP/", 5) == 0);
-
-                if (!http_style) {
-                    /* ICY u otro estilo de una sola línea: cierra acá,
-                     * sin esperar línea en blanco. */
-                    size_t header_len = i + 1;
-                    memcpy(response->header, buf, header_len);
-                    response->header[header_len] = '\0';
-                    response->header_len = header_len;
-                    response->payload_len = used - header_len;
-                    if (response->payload_len)
-                        memcpy(response->payload, buf + header_len,
-                               response->payload_len);
-                    return 0;
-                }
+                line_end    = i;
                 break;
+            }
+        }
+
+        if (style_known && !http_style) {
+            size_t after = line_end + 1;
+            size_t have  = used - after;   /* bytes ya recibidos tras el \r\n */
+            int    decided = 0, blank_line = 0;
+
+            if (have >= 2) {
+                blank_line = (buf[after] == '\r' && buf[after + 1] == '\n');
+                decided = 1;
+            } else if (have == 1 && buf[after] != '\r') {
+                /* No puede ser el arranque de una segunda línea en
+                 * blanco -- ya sabemos que no hay. */
+                decided = 1;
+            }
+            /* have == 0, o have == 1 con buf[after]=='\r': todavía
+             * ambiguo, esperar 1-2 bytes más antes de decidir. */
+
+            if (decided) {
+                size_t header_len = blank_line ? after + 2 : after;
+                memcpy(response->header, buf, header_len);
+                response->header[header_len] = '\0';
+                response->header_len = header_len;
+                response->payload_len = used - header_len;
+                if (response->payload_len)
+                    memcpy(response->payload, buf + header_len,
+                           response->payload_len);
+                return 0;
             }
         }
 

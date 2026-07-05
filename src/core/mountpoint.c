@@ -2,6 +2,7 @@
  * mountpoint.c — Gestión de mountpoints y relay de datos
  */
 #include "mountpoint.h"
+#include "logger.h"
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
@@ -100,8 +101,8 @@ int mp_source_attach(mountpoint_t *mp, conn_t *source)
 
     pthread_rwlock_unlock(&mp->lock);
 
-    printf("[mount:%s] source attached fd=%d addr=%s\n",
-           mp->name, source->fd, source->remote_addr);
+    log_info("mount:%s source attached fd=%d addr=%s",
+             mp->name, source->fd, source->remote_addr);
     return 0;
 }
 
@@ -116,10 +117,10 @@ void mp_source_detach(mountpoint_t *mp, conn_t *source)
 
     pthread_rwlock_unlock(&mp->lock);
 
-    printf("[mount:%s] source detached fd=%d  relayed=%llu bytes / %llu frames\n",
-           mp->name, source->fd,
-           (unsigned long long)mp->bytes_relayed,
-           (unsigned long long)mp->frames_relayed);
+    log_info("mount:%s source detached fd=%d  relayed=%llu bytes / %llu frames",
+             mp->name, source->fd,
+             (unsigned long long)mp->bytes_relayed,
+             (unsigned long long)mp->frames_relayed);
 }
 
 /* ── Clientes ─────────────────────────────────────────────────────── */
@@ -148,8 +149,8 @@ int mp_client_subscribe(mountpoint_t *mp, conn_t *client)
 
     pthread_rwlock_unlock(&mp->lock);
 
-    printf("[mount:%s] client subscribed fd=%d addr=%s  total=%d\n",
-           mp->name, client->fd, client->remote_addr, mp->client_count);
+    log_info("mount:%s client subscribed fd=%d addr=%s  total=%d",
+             mp->name, client->fd, client->remote_addr, mp->client_count);
     return 0;
 }
 
@@ -169,8 +170,8 @@ void mp_client_unsubscribe(mountpoint_t *mp, conn_t *client)
 
     pthread_rwlock_unlock(&mp->lock);
 
-    printf("[mount:%s] client unsubscribed fd=%d  remaining=%d\n",
-           mp->name, client->fd, mp->client_count);
+    log_info("mount:%s client unsubscribed fd=%d  remaining=%d",
+             mp->name, client->fd, mp->client_count);
 }
 
 /* ── Relay ────────────────────────────────────────────────────────── */

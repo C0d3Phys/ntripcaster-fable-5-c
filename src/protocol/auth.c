@@ -2,6 +2,7 @@
  * auth.c — Implementación del registro de credenciales + Basic Auth
  */
 #include "auth.h"
+#include "../core/logger.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -85,8 +86,8 @@ static int auth_ini_handler(void *user, const char *section,
     if (strcasecmp(section, "caster") == 0)
         return 1;
 
-    fprintf(stderr, "[auth] seccion desconocida en conf: [%s] (linea ignorada: %s)\n",
-            section, name);
+    log_warn("auth: seccion desconocida en conf: [%s] (linea ignorada: %s)",
+             section, name);
     return 1;   /* no aborta el parseo por una seccion rara */
 }
 
@@ -115,14 +116,12 @@ static int tables_load(const char *conf_path, auth_tables_t *t)
 
     int rc = ini_parse(conf_path, auth_ini_handler, t);
     if (rc < 0) {
-        fprintf(stderr,
-            "[auth] ERROR: no se pudo abrir '%s'\n", conf_path);
+        log_error("auth: no se pudo abrir '%s'", conf_path);
         tables_free(t->sources, t->clients);
         return -1;
     }
     if (rc > 0) {
-        fprintf(stderr,
-            "[auth] ERROR: error de sintaxis en '%s' linea %d\n", conf_path, rc);
+        log_error("auth: error de sintaxis en '%s' linea %d", conf_path, rc);
         tables_free(t->sources, t->clients);
         return -1;
     }
@@ -137,17 +136,16 @@ int auth_registry_load(const char *conf_path)
      */
     auth_tables_t t;
     if (tables_load(conf_path, &t) != 0) {
-        fprintf(stderr,
-            "[auth] ningun SOURCE/GET va a poder autenticarse hasta que "
-            "'%s' exista y sea valido\n", conf_path);
+        log_error("auth: ningun SOURCE/GET va a poder autenticarse hasta que "
+                  "'%s' exista y sea valido", conf_path);
         return -1;
     }
 
     g_sources = t.sources;
     g_clients = t.clients;
 
-    printf("[auth] registro cargado desde '%s': %d source(s), %d cliente(s)\n",
-           conf_path, HASH_COUNT(g_sources), HASH_COUNT(g_clients));
+    log_info("auth: registro cargado desde '%s': %d source(s), %d cliente(s)",
+             conf_path, HASH_COUNT(g_sources), HASH_COUNT(g_clients));
     return 0;
 }
 
@@ -165,8 +163,8 @@ int auth_registry_reload(const char *conf_path)
      */
     auth_tables_t t;
     if (tables_load(conf_path, &t) != 0) {
-        fprintf(stderr, "[auth] reload FALLIDO -- se conserva el registro "
-                        "anterior en memoria\n");
+        log_error("auth: reload FALLIDO -- se conserva el registro "
+                  "anterior en memoria");
         return -1;
     }
 
@@ -179,8 +177,8 @@ int auth_registry_reload(const char *conf_path)
 
     tables_free(old_sources, old_clients);
 
-    printf("[auth] registro RECARGADO desde '%s': %d source(s), %d cliente(s)\n",
-           conf_path, HASH_COUNT(g_sources), HASH_COUNT(g_clients));
+    log_info("auth: registro RECARGADO desde '%s': %d source(s), %d cliente(s)",
+             conf_path, HASH_COUNT(g_sources), HASH_COUNT(g_clients));
     return 0;
 }
 

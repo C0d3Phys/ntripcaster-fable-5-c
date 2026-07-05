@@ -1,0 +1,5 @@
+relay_rover_compare_e2e 1 10.96
+ntrip_tools_help_relay 1 0.00346812
+ntrip_tools_help_rover 1 0.00395725
+ntrip_tools_help_compare 1 0.00334592
+---

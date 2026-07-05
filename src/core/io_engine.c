@@ -735,6 +735,63 @@ void io_engine_stop(io_engine_t *engine)
     engine->running = 0;
 }
 
+/*
+ * io_engine_close_remaining_conns — IMP-01C: cierra y libera cualquier
+ * conexión que haya quedado viva al momento del shutdown (source
+ * empujando, rovers suscritos, etc.).
+ *
+ * Antes de este fix, io_engine_destroy() solo unía los threads y
+ * cerraba epoll_fd/listen_fd -- cualquier conn_t que siguiera en la
+ * lista global del broker (b->conns_head) quedaba sin cerrar: el fd
+ * se filtraba (nunca se llamaba close()) y broker_destroy() de todos
+ * modos destruía los mountpoints/rings que esos conn_t todavía
+ * referenciaban (conn->mp), dejando memoria sin liberar (conn_t) y una
+ * referencia potencialmente colgante si algo los llegaba a tocar.
+ *
+ * Es seguro llamar esto acá porque para cuando se invoca:
+ *   - accept_loop() ya retornó (io_engine_run ya volvió a main.c) →
+ *     nadie acepta conexiones nuevas.
+ *   - todos los worker threads ya hicieron join → nadie más despacha
+ *     eventos ni toca conn_t concurrentemente.
+ * Es decir, en este punto el único thread vivo es el que llama a
+ * io_engine_destroy(); no hace falta ninguna sincronización especial
+ * más allá de reusar el mismo lock que ya protege conns_head.
+ *
+ * Se respeta el mismo orden que io_engine_conn_close() documenta:
+ * EPOLL_CTL_DEL → broker_conn_free() (detach de mountpoint/listas) →
+ * close(fd).
+ */
+static void io_engine_close_remaining_conns(io_engine_t *eng)
+{
+    broker_t *b = eng->broker;
+    int       n = 0;
+
+    for (;;) {
+        pthread_mutex_lock(&b->conns_lock);
+        conn_t *c = b->conns_head;
+        pthread_mutex_unlock(&b->conns_lock);
+
+        if (!c) break;
+
+        int fd = c->fd;
+        log_warn("io: shutdown -- cerrando conexion residual fd=%d tipo=%s "
+                 "mp=%s (rx=%llu tx=%llu)",
+                 fd, conn_type_name(c->type),
+                 c->mountpoint[0] ? c->mountpoint : "-",
+                 (unsigned long long)c->bytes_rx,
+                 (unsigned long long)c->bytes_tx);
+
+        if (eng->epoll_fd >= 0)
+            epoll_ctl(eng->epoll_fd, EPOLL_CTL_DEL, fd, NULL);
+        broker_conn_free(b, c);   /* desenlaza de conns_head + detach mount + free(c) */
+        close(fd);
+        n++;
+    }
+
+    if (n > 0)
+        log_info("io: shutdown -- %d conexion(es) residual(es) cerradas", n);
+}
+
 void io_engine_destroy(io_engine_t *engine)
 {
     io_engine_stop(engine);
@@ -745,8 +802,20 @@ void io_engine_destroy(io_engine_t *engine)
     free(engine->threads);
     wq_destroy(&engine->queue);
 
-    if (engine->epoll_fd >= 0)  close(engine->epoll_fd);
-    if (engine->listen_fd >= 0) close(engine->listen_fd);
+    /* IMP-01C: cerrar conexiones que hayan quedado vivas ANTES de tocar
+     * broker_destroy()/mountpoints -- ver comentario de la función. */
+    io_engine_close_remaining_conns(engine);
+
+    if (engine->listen_fd >= 0) {
+        if (engine->epoll_fd >= 0)
+            epoll_ctl(engine->epoll_fd, EPOLL_CTL_DEL, engine->listen_fd, NULL);
+        close(engine->listen_fd);
+        engine->listen_fd = -1;
+    }
+    if (engine->epoll_fd >= 0) {
+        close(engine->epoll_fd);
+        engine->epoll_fd = -1;
+    }
 
     printf("[io] engine destroyed\n");
 }

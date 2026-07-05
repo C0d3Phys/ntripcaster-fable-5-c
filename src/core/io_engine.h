@@ -140,6 +140,12 @@ void io_engine_stop(io_engine_t *engine);
 
 /*
  * io_engine_destroy — Libera recursos. Llamar después de stop+run.
+ *
+ * IMP-01C: además de unir los threads y cerrar epoll/listen, cierra y
+ * libera cualquier conexión que haya quedado viva al momento del
+ * shutdown (source empujando, rovers suscritos) ANTES de que el
+ * llamador destruya el broker -- evita fd leaks y conn_t sin liberar.
+ * Ver comentario de io_engine_close_remaining_conns() en el .c.
  */
 void io_engine_destroy(io_engine_t *engine);
 

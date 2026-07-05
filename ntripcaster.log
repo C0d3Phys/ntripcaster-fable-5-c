@@ -203,3 +203,65 @@
 2026-07-04 14:29:03.108 [INFO ] stats: mount=BASE1 ONLINE clientes=0  1.1 KB/s  frames+162 (tot 21412)  corrupto+0B (tot 0)  tipos: 1074:3562 1084:3562 1094:3562 1114:3562 1124:3562 1006:357 1230:357 1013:357 1033:356 1042:582 1045:385 1046:368 1019:471 1020:309 1044:60
 2026-07-04 14:29:03.110 [INFO ] io: source fd=6 mp=BASE1 cerro la conexion (EOF)
 2026-07-04 15:33:26.660 [INFO ] main: bye
+2026-07-05 01:06:03.539 [INFO ] NtripCaster v1.001.1.10  'CasterCesar'  0.0.0.0:2101  conf=conf/ntripcaster.conf  log=ntripcaster.log
+2026-07-05 01:06:03.566 [ERROR] main: io_engine_init fallo (puerto 2101 ocupado?)
+2026-07-05 01:10:28.070 [INFO ] NtripCaster v1.001.1.11  'CasterCesar'  0.0.0.0:0  conf=conf/ntripcaster.conf  log=ntripcaster.log
+2026-07-05 01:10:40.264 [INFO ] main: bye
+2026-07-05 01:11:21.804 [INFO ] NtripCaster v1.001.1.11  'CasterCesar'  0.0.0.0:2101  conf=conf/ntripcaster.conf  log=ntripcaster.log
+2026-07-05 01:12:25.627 [INFO ] ntrip: SOURCE v1 fd=6 mp=BASE1 addr=127.0.0.1:47484
+2026-07-05 01:12:25.628 [INFO ] ntrip: source v1 registrado fd=6 mp=BASE1
+2026-07-05 01:12:35.466 [INFO ] io: source fd=6 mp=BASE1 cerro la conexion (EOF)
+2026-07-05 01:12:39.220 [INFO ] ntrip: SOURCE v1 fd=6 mp=BASE1 addr=127.0.0.1:45004
+2026-07-05 01:12:39.221 [INFO ] ntrip: source v1 registrado fd=6 mp=BASE1
+2026-07-05 01:12:52.861 [INFO ] stats: mount=BASE1 ONLINE clientes=0  1.0 KB/s  frames+75 (tot 75)  corrupto+0B (tot 0)  tipos: 1114:12 1124:24 1006:2 1230:2 1074:11 1084:11 1094:11 1013:1 1033:1
+2026-07-05 01:12:54.724 [INFO ] ntrip: CLIENT fd=7 mp=BASE1 user=rover1 v1 addr=127.0.0.1:42392
+2026-07-05 01:12:54.724 [INFO ] ntrip: client suscrito fd=7 mp=BASE1
+2026-07-05 01:13:22.179 [INFO ] stats: mount=BASE1 ONLINE clientes=1  1.4 KB/s  frames+205 (tot 280)  corrupto+0B (tot 0)  tipos: 1114:44 1124:88 1006:5 1230:5 1074:43 1084:43 1094:43 1013:5 1033:4
+2026-07-05 01:13:52.125 [INFO ] stats: mount=BASE1 ONLINE clientes=1  1.4 KB/s  frames+192 (tot 472)  corrupto+0B (tot 0)  tipos: 1114:74 1124:148 1006:8 1230:8 1074:73 1084:73 1094:73 1013:8 1033:7
+2026-07-05 01:14:22.046 [INFO ] stats: mount=BASE1 ONLINE clientes=1  1.4 KB/s  frames+236 (tot 708)  corrupto+0B (tot 0)  tipos: 1114:104 1124:206 1006:11 1230:11 1074:103 1084:103 1094:103 1013:11 1033:10 1042:20 1045:13 1046:13
+2026-07-05 01:14:39.258 [WARN ] io: shutdown -- cerrando conexion residual fd=7 tipo=client mp=BASE1 (rx=0 tx=300614)
+2026-07-05 01:14:39.259 [WARN ] io: shutdown -- cerrando conexion residual fd=6 tipo=source mp=BASE1 (rx=169065 tx=0)
+2026-07-05 01:14:39.259 [INFO ] io: shutdown -- 2 conexion(es) residual(es) cerradas
+2026-07-05 01:14:39.264 [INFO ] main: bye
+2026-07-05 01:15:14.611 [INFO ] NtripCaster v1.001.1.11  'CasterCesar'  0.0.0.0:2101  conf=conf/ntripcaster.conf  log=ntripcaster.log
+2026-07-05 01:15:14.841 [INFO ] ntrip: CLIENT fd=6 mp=BASE1 user=rover1 v1 addr=127.0.0.1:41224
+2026-07-05 01:15:15.186 [INFO ] ntrip: SOURCE v1 fd=6 mp=BASE1 addr=127.0.0.1:41230
+2026-07-05 01:15:15.187 [INFO ] ntrip: source v1 registrado fd=6 mp=BASE1
+2026-07-05 01:15:23.998 [INFO ] ntrip: CLIENT fd=7 mp=BASE1 user=rover1 v1 addr=127.0.0.1:48420
+2026-07-05 01:15:23.999 [INFO ] ntrip: client suscrito fd=7 mp=BASE1
+2026-07-05 01:15:46.038 [INFO ] stats: mount=BASE1 ONLINE clientes=1  1.3 KB/s  frames+198 (tot 198)  corrupto+0B (tot 0)  tipos: 1074:31 1084:31 1094:31 1114:31 1124:62 1033:3 1006:3 1230:3 1013:3
+2026-07-05 01:16:16.045 [INFO ] stats: mount=BASE1 ONLINE clientes=1  1.4 KB/s  frames+205 (tot 403)  corrupto+0B (tot 0)  tipos: 1074:63 1084:63 1094:63 1114:63 1124:126 1033:7 1006:6 1230:6 1013:6
+2026-07-05 01:16:32.392 [WARN ] io: shutdown -- cerrando conexion residual fd=7 tipo=client mp=BASE1 (rx=0 tx=196452)
+2026-07-05 01:16:32.392 [WARN ] io: shutdown -- cerrando conexion residual fd=6 tipo=source mp=BASE1 (rx=111950 tx=0)
+2026-07-05 01:16:32.393 [INFO ] io: shutdown -- 2 conexion(es) residual(es) cerradas
+2026-07-05 01:16:32.397 [INFO ] main: bye
+2026-07-05 09:08:49.193 [INFO ] NtripCaster v1.001.1.11  'CasterCesar'  0.0.0.0:2101  conf=conf/ntripcaster.conf  log=ntripcaster.log
+2026-07-05 09:27:48.302 [INFO ] main: bye
+2026-07-05 09:28:14.149 [INFO ] NtripCaster v1.001.1.11  'CasterCesar'  0.0.0.0:2101  conf=conf/ntripcaster.conf  log=ntripcaster.log
+2026-07-05 09:28:27.366 [INFO ] ntrip: SOURCE v1 fd=6 mp=BASE1 addr=127.0.0.1:47782
+2026-07-05 09:28:27.367 [INFO ] ntrip: source v1 registrado fd=6 mp=BASE1
+2026-07-05 09:28:44.151 [INFO ] stats: mount=BASE1 ONLINE clientes=0  0.8 KB/s  frames+113 (tot 113)  corrupto+0B (tot 0)  tipos: 1074:18 1084:18 1094:18 1114:18 1124:34 1006:2 1230:2 1013:2 1033:1
+2026-07-05 09:29:14.073 [INFO ] stats: mount=BASE1 ONLINE clientes=0  1.4 KB/s  frames+188 (tot 301)  corrupto+0B (tot 0)  tipos: 1074:47 1084:47 1094:47 1114:47 1124:94 1006:5 1230:5 1013:5 1033:4
+2026-07-05 09:29:44.099 [INFO ] stats: mount=BASE1 ONLINE clientes=0  1.4 KB/s  frames+192 (tot 493)  corrupto+0B (tot 0)  tipos: 1074:77 1084:77 1094:77 1114:77 1124:154 1006:8 1230:8 1013:8 1033:7
+2026-07-05 09:30:14.167 [INFO ] stats: mount=BASE1 ONLINE clientes=0  1.3 KB/s  frames+186 (tot 679)  corrupto+0B (tot 0)  tipos: 1074:106 1084:106 1094:106 1114:106 1124:212 1006:11 1230:11 1013:11 1033:10
+2026-07-05 09:30:44.070 [INFO ] stats: mount=BASE1 ONLINE clientes=0  1.6 KB/s  frames+275 (tot 954)  corrupto+0B (tot 0)  tipos: 1074:136 1084:136 1094:136 1114:136 1124:272 1006:14 1230:14 1013:14 1033:13 1042:22 1045:14 1046:15 1019:18 1020:11 1044:3
+2026-07-05 09:31:14.105 [INFO ] stats: mount=BASE1 ONLINE clientes=0  1.4 KB/s  frames+192 (tot 1146)  corrupto+0B (tot 0)  tipos: 1074:166 1084:166 1094:166 1114:166 1124:332 1006:17 1230:17 1013:17 1033:16 1042:22 1045:14 1046:15 1019:18 1020:11 1044:3
+2026-07-05 09:31:46.251 [INFO ] stats: mount=BASE1 ONLINE clientes=0  1.4 KB/s  frames+204 (tot 1350)  corrupto+0B (tot 0)  tipos: 1074:198 1084:198 1094:198 1114:198 1124:396 1006:20 1230:20 1013:20 1033:19 1042:22 1045:14 1046:15 1019:18 1020:11 1044:3
+2026-07-05 09:31:48.182 [INFO ] ntrip: CLIENT fd=7 mp=BASE1 user=rover1 v1 addr=127.0.0.1:32818
+2026-07-05 09:31:48.183 [INFO ] ntrip: client suscrito fd=7 mp=BASE1
+2026-07-05 09:32:16.081 [INFO ] stats: mount=BASE1 ONLINE clientes=1  1.5 KB/s  frames+205 (tot 1555)  corrupto+0B (tot 0)  tipos: 1074:230 1084:230 1094:230 1114:230 1124:460 1006:23 1230:23 1013:23 1033:23 1042:22 1045:14 1046:15 1019:18 1020:11 1044:3
+2026-07-05 09:32:46.154 [INFO ] stats: mount=BASE1 ONLINE clientes=0  1.6 KB/s  frames+269 (tot 1824)  corrupto+0B (tot 0)  tipos: 1074:260 1084:260 1094:260 1114:260 1124:520 1006:26 1230:26 1013:26 1033:26 1042:42 1045:28 1046:30 1019:32 1020:22 1044:6
+2026-07-05 09:33:05.789 [INFO ] io: source fd=6 mp=BASE1 cerro la conexion (EOF)
+2026-07-05 09:33:09.000 [INFO ] main: bye
+2026-07-05 09:34:11.475 [INFO ] NtripCaster v1.001.1.11  'CasterCesar'  0.0.0.0:2101  conf=conf/ntripcaster.conf  log=ntripcaster.log
+2026-07-05 09:34:26.210 [INFO ] ntrip: SOURCE v1 fd=6 mp=BASE1 addr=127.0.0.1:34974
+2026-07-05 09:34:26.211 [INFO ] ntrip: source v1 registrado fd=6 mp=BASE1
+2026-07-05 09:34:41.059 [INFO ] stats: mount=BASE1 ONLINE clientes=0  0.6 KB/s  frames+86 (tot 86)  corrupto+0B (tot 0)  tipos: 1124:28 1074:13 1084:13 1094:13 1114:13 1006:2 1230:2 1013:1 1033:1
+2026-07-05 09:34:41.839 [INFO ] ntrip: CLIENT fd=7 mp=BASE1 user=rover1 v1 addr=127.0.0.1:47638
+2026-07-05 09:34:41.839 [INFO ] ntrip: client suscrito fd=7 mp=BASE1
+2026-07-05 09:34:52.250 [INFO ] ntrip: CLIENT fd=8 mp=BASE1 user=rover1 v1 addr=127.0.0.1:33826
+2026-07-05 09:34:52.251 [INFO ] ntrip: client suscrito fd=8 mp=BASE1
+2026-07-05 09:35:12.236 [INFO ] stats: mount=BASE1 ONLINE clientes=1  1.4 KB/s  frames+198 (tot 284)  corrupto+0B (tot 0)  tipos: 1124:90 1074:44 1084:44 1094:44 1114:44 1006:5 1230:5 1013:4 1033:4
+2026-07-05 09:35:26.296 [INFO ] io: source fd=6 mp=BASE1 cerro la conexion (EOF)
+2026-07-05 09:35:42.112 [INFO ] stats: mount=BASE1 offline clientes=0  0.7 KB/s  frames+96 (tot 380)  corrupto+0B (tot 0)  tipos: 1124:120 1074:59 1084:59 1094:59 1114:59 1006:6 1230:6 1013:6 1033:6
+2026-07-05 09:42:27.701 [INFO ] main: SIGHUP recibido - recargando registro de auth

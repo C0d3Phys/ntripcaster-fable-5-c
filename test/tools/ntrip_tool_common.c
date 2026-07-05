@@ -226,11 +226,36 @@ int nt_send_all(int fd, const void *data, size_t len)
     return len == 0 ? 0 : -1;
 }
 
+/*
+ * nt_read_response — Lee la respuesta inicial de un caster NTRIP.
+ *
+ * Hay dos estilos posibles y NO se puede asumir uno solo:
+ *
+ *   - NTRIP v1 / ICY (la mayoría de casters reales, ej. SNIP): una
+ *     única línea de estado terminada en UN SOLO "\r\n" -- p.ej.
+ *     "ICY 200 OK\r\n" -- y el stream RTCM3 binario arranca
+ *     INMEDIATAMENTE después, sin línea en blanco. Si acá esperáramos
+ *     "\r\n\r\n" (como HTTP), nos quedaríamos leyendo datos binarios
+ *     buscando un patrón que puede no aparecer nunca, hasta desbordar
+ *     el buffer de header (bug real: contra nuestro propio caster
+ *     local funcionaba porque manda "ICY 200 OK\r\n\r\n" con el CRLF
+ *     extra, pero contra SNIP fallaba con "response header exceeds
+ *     16384 bytes").
+ *   - HTTP real (NTRIP v2: GET/SOURCE POST con headers, ej.
+ *     "HTTP/1.1 200 OK\r\nContent-Type: ...\r\n\r\n"): ahí SÍ hay que
+ *     esperar la línea en blanco antes de que empiece el payload.
+ *
+ * Se distingue mirando el primer renglón: si arranca con "HTTP/" es
+ * el caso HTTP (doble CRLF); cualquier otra cosa (ICY, o lo que sea)
+ * se trata como línea única -- el primer "\r\n" ya cierra el header.
+ */
 int nt_read_response(int fd, ntrip_response_t *response)
 {
     memset(response, 0, sizeof(*response));
     uint8_t buf[NTRIP_TOOL_HEADER_MAX];
     size_t used = 0;
+    int    style_known = 0;   /* ya vimos el primer \r\n y decidimos el estilo */
+    int    http_style  = 0;   /* 1 = esperar "\r\n\r\n"; 0 = una sola línea */
 
     while (used < sizeof(buf)) {
         ssize_t n = recv(fd, buf + used, sizeof(buf) - used, 0);
@@ -238,18 +263,45 @@ int nt_read_response(int fd, ntrip_response_t *response)
         if (n <= 0) return -1;
         used += (size_t)n;
 
-        for (size_t i = 3; i < used; i++) {
-            if (buf[i - 3] == '\r' && buf[i - 2] == '\n' &&
-                buf[i - 1] == '\r' && buf[i] == '\n') {
-                size_t header_len = i + 1;
-                memcpy(response->header, buf, header_len);
-                response->header[header_len] = '\0';
-                response->header_len = header_len;
-                response->payload_len = used - header_len;
-                if (response->payload_len)
-                    memcpy(response->payload, buf + header_len,
-                           response->payload_len);
-                return 0;
+        if (!style_known) {
+            for (size_t i = 1; i < used; i++) {
+                if (buf[i - 1] != '\r' || buf[i] != '\n')
+                    continue;
+
+                style_known = 1;
+                http_style  = (used >= 5 && memcmp(buf, "HTTP/", 5) == 0);
+
+                if (!http_style) {
+                    /* ICY u otro estilo de una sola línea: cierra acá,
+                     * sin esperar línea en blanco. */
+                    size_t header_len = i + 1;
+                    memcpy(response->header, buf, header_len);
+                    response->header[header_len] = '\0';
+                    response->header_len = header_len;
+                    response->payload_len = used - header_len;
+                    if (response->payload_len)
+                        memcpy(response->payload, buf + header_len,
+                               response->payload_len);
+                    return 0;
+                }
+                break;
+            }
+        }
+
+        if (style_known && http_style) {
+            for (size_t i = 3; i < used; i++) {
+                if (buf[i - 3] == '\r' && buf[i - 2] == '\n' &&
+                    buf[i - 1] == '\r' && buf[i] == '\n') {
+                    size_t header_len = i + 1;
+                    memcpy(response->header, buf, header_len);
+                    response->header[header_len] = '\0';
+                    response->header_len = header_len;
+                    response->payload_len = used - header_len;
+                    if (response->payload_len)
+                        memcpy(response->payload, buf + header_len,
+                               response->payload_len);
+                    return 0;
+                }
             }
         }
     }

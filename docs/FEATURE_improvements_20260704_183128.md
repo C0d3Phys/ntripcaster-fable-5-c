@@ -2,6 +2,7 @@
 
 **Proyecto:** NtripCaster  
 **Fecha de registro:** 2026-07-04 18:31:28 (America/Managua)  
+**Revisión técnica incorporada:** 2026-07-04  
 **Estado:** Propuesta de roadmap  
 **Objetivo:** llevar el caster desde su estado funcional actual hasta una base segura, verificable y operable en producción.
 
@@ -20,12 +21,15 @@ en caliente y persistencia.
 
 ## 2. Prioridad crítica — estabilidad y seguridad
 
-### IMP-01 — Ciclo de vida seguro de `conn_t`
+### IMP-01 — Ownership y exclusión segura de `conn_t`
 
 **Problema:** un evento que ya esté dentro de la cola de trabajo puede conservar
 un puntero a una conexión liberada por otro worker. El orden actual de
 `EPOLL_CTL_DEL`, detach y `close()` reduce la ventana, pero no elimina eventos
-ya encolados.
+ya encolados. Además, `clients_wakeup()` puede hacer `EPOLL_CTL_MOD` y reactivar
+un cliente mientras otro worker todavía procesa ese mismo `conn_t`. Mantener el
+objeto vivo no basta: también hay que impedir que dos workers modifiquen a la
+vez `wbuf`, `read_offset`, estado, timestamps o estadísticas de la conexión.
 
 **Propuesta:**
 
@@ -34,6 +38,12 @@ ya encolados.
 - Liberar esa referencia al terminar o descartar el trabajo.
 - Separar `closing` de la liberación física de memoria.
 - Garantizar que sólo un worker ejecute el cierre lógico.
+- Añadir una garantía de exclusión por conexión (`in_flight`, mutex pequeño o
+  máquina de estados atómica) independiente del contador de referencias.
+- Hacer que un wakeup concurrente acumule interés pendiente sin crear un
+  segundo procesamiento simultáneo del mismo cliente.
+- Definir explícitamente quién posee cada referencia: registro global,
+  mountpoint, epoll, work queue y worker activo.
 - Agregar una prueba de estrés con conexiones y desconexiones simultáneas.
 
 **Criterios de aceptación:**
@@ -41,7 +51,70 @@ ya encolados.
 - Ningún `use-after-free` bajo AddressSanitizer.
 - Ninguna carrera de ciclo de vida bajo ThreadSanitizer.
 - Cierre idempotente aunque dos eventos detecten error al mismo tiempo.
+- Como máximo un worker modifica el estado mutable de una conexión.
+- Un wakeup ocurrido durante el dispatch no se pierde y se procesa después.
 - Prueba repetida de conexión/desconexión durante al menos 10 minutos.
+
+### IMP-01B — Lectura consistente del ring buffer SPMC
+
+**Problema:** `rb_read()` comprueba el lag usando un snapshot de `write_pos` y
+después copia directamente desde el ring. Durante ese `memcpy`, el único
+productor puede avanzar una vuelta y sobrescribir la región que está leyendo
+un rover lento. El acquire/release de `write_pos` publica los bytes nuevos,
+pero no protege bytes antiguos contra sobrescritura concurrente.
+
+**Propuesta:** elegir y documentar una estrategia que garantice un snapshot
+consistente, por ejemplo slots/chunks con número de secuencia, doble validación
+antes y después de copiar con reintento seguro, o sincronización acotada entre
+escritor y lectores. La solución debe mantener la regla de que un rover lento
+nunca bloquea indefinidamente al source.
+
+**Criterios de aceptación:**
+
+- Ninguna data race sobre `ring.buf` bajo ThreadSanitizer.
+- El lector entrega bytes pertenecientes a una única versión del ring o
+  informa lag; nunca una mezcla silenciosa de dos vueltas.
+- Pruebas con buffer pequeño, productor rápido y consumidores deliberadamente
+  pausados reproducen wrap-around muchas veces.
+- La política de lag conserva el framing RTCM3 o desconecta explícitamente.
+
+### IMP-01C — Shutdown ordenado y ownership al apagar
+
+**Problema:** `io_engine_destroy()` une workers y destruye la cola, epoll y el
+listener, pero no define un cierre explícito de todas las conexiones vivas
+antes de destruir broker y mountpoints.
+
+**Secuencia requerida:**
+
+1. Dejar de aceptar conexiones nuevas y retirar el listener de epoll.
+2. Marcar todas las conexiones como `closing` sin liberar memoria prematuramente.
+3. Drenar o cancelar la work queue liberando sus referencias.
+4. Cerrar y desregistrar todas las conexiones vivas.
+5. Despertar y unir workers.
+6. Destruir epoll, broker, mountpoints y registros globales.
+
+**Criterios de aceptación:** shutdown repetible con cero conexiones, con source
+y rovers activos y con la cola saturada; sin leaks bajo LeakSanitizer y sin
+esperas indefinidas.
+
+### IMP-01D — Contadores, límites y snapshots concurrentes
+
+**Problemas detectados:**
+
+- `atomic_load(active_*)` seguido por `atomic_fetch_add()` no reserva cupo de
+  forma indivisible; varios workers pueden superar temporalmente el límite.
+- Las estadísticas de mountpoint se escriben desde workers y se leen/resetan
+  desde el sweep sin atomics ni un snapshot protegido.
+- `bytes_tx` se incrementa al copiar bytes del ring al `wbuf` y otra vez al
+  enviarlos al socket, por lo que no representa una única métrica.
+
+**Propuesta:** reservar cupos con CAS o bajo el lock del registro y revertir la
+reserva en todo camino de error; publicar snapshots coherentes de estadísticas;
+y separar métricas como `bytes_queued` y `bytes_sent`.
+
+**Criterios de aceptación:** los límites nunca se exceden bajo registro
+concurrente, TSan no reporta carreras y cada contador tiene una definición
+única comprobada por tests.
 
 ### IMP-02 — Gestión segura de credenciales
 
@@ -104,6 +177,12 @@ Agregar pruebas automáticas para:
 10. Timeouts de handshake, source y rover.
 11. Reload válido e inválido sin interrumpir conexiones existentes.
 12. Saturación y recuperación de la cola de trabajo.
+13. Dos wakeups concurrentes sobre el mismo cliente sin doble dispatch.
+14. Shutdown con conexiones y trabajos activos.
+15. Límite global disputado simultáneamente por muchos workers.
+16. Wrap-around del ring con un lector lento.
+17. Comparador: capturas idénticas, pérdida interior, desfase inicial, frame
+    corrupto y frame adicional.
 
 **Criterios de aceptación:**
 
@@ -182,7 +261,8 @@ Agregar políticas configurables:
 
 - Archivo de servicio `systemd` con usuario sin privilegios.
 - Límites de archivos abiertos y reinicio controlado.
-- `SIGTERM` con shutdown ordenado y tiempo máximo de drenaje.
+- `SIGTERM` con el shutdown ordenado definido en IMP-01C y tiempo máximo de
+  drenaje.
 - Health check de proceso y readiness de escucha.
 - Instalación mediante CMake con rutas configurables.
 - Contenedor opcional con imagen mínima y filesystem de sólo lectura.
@@ -261,10 +341,17 @@ medición que lo justifique.
 
 ### Fase A — Base confiable
 
-- IMP-01 ciclo de vida/refcount.
-- IMP-04 suite de integración.
-- IMP-05 sanitizers y CI.
-- IMP-06 higiene y README.
+Ejecutar en este orden:
+
+1. IMP-04: prueba local determinista source → caster → rover y casos del
+   comparador, sin depender de Internet.
+2. IMP-05: ASan/UBSan/TSan y CI para convertir carreras en fallos observables.
+3. IMP-01: ownership/refcount y cierre idempotente.
+4. IMP-01: exclusión por conexión y wakeups sin doble dispatch.
+5. IMP-01B: consistencia del ring buffer y política de rover lento.
+6. IMP-01C: shutdown ordenado.
+7. IMP-01D: límites estrictos, snapshots y semántica de contadores.
+8. IMP-06: limpieza del repositorio y build reproducible.
 
 ### Fase B — Seguridad y despliegue
 
@@ -301,8 +388,9 @@ Una feature no se considera terminada hasta que:
 
 ## 9. Siguiente acción recomendada
 
-Comenzar por **IMP-01** y construir simultáneamente el test de estrés que
-reproduzca cierres concurrentes. Es el cambio que más reduce el riesgo de una
-falla difícil de diagnosticar. Después, automatizar el flujo local
-source → caster → rover permitirá desarrollar el resto con mucha más seguridad.
-
+Comenzar por el **harness local source → caster → rover** y activar sanitizers;
+esa red de seguridad debe preceder los cambios de concurrencia. A continuación,
+implementar IMP-01 como tres garantías separadas: el objeto continúa vivo
+mientras exista un trabajo, sólo un worker modifica cada conexión y el ring
+entrega un snapshot consistente o declara lag. Después completar shutdown,
+límites y snapshots antes de avanzar a credenciales, TLS o nuevas features.

@@ -2,3 +2,4 @@
 ntrip_tools.conf
 *.rtcm3
 *.bin
+capture_rtcm3_bin_UTC/

@@ -62,6 +62,8 @@ int main(int argc, char **argv)
     }
     ntrip_tool_config_t config;
     memset(&config, 0, sizeof(config));
+    snprintf(config.capture_root, sizeof(config.capture_root),
+             "capture_rtcm3_bin_UTC");
     if (argc == 3 && strcmp(argv[1], "--config") == 0) {
         if (nt_config_load(argv[2], &config) != 0 ||
             nt_config_validate_rover(&config) != 0) return 2;
@@ -84,13 +86,18 @@ int main(int argc, char **argv)
         snprintf(config.rover_password, sizeof(config.rover_password), "%s", password);
     }
     long duration = config.rover_seconds;
-    FILE *capture = NULL;
+    char session[1024], capture_path[1200];
+    if (nt_capture_current_session(config.capture_root, session, sizeof(session)) != 0 ||
+        snprintf(capture_path, sizeof(capture_path), "%s/rover_rtcm3.bin", session) >=
+            (int)sizeof(capture_path)) return 1;
+    FILE *capture = fopen(capture_path, "wb");
+    if (!capture) {
+        perror(capture_path);
+        return 1;
+    }
     if (config.rover_output[0]) {
-        capture = fopen(config.rover_output, "wb");
-        if (!capture) {
-            perror(config.rover_output);
-            return 1;
-        }
+        fprintf(stderr, "note: rover.output is deprecated; using session capture %s\n",
+                capture_path);
     }
 
     nt_install_signal_handlers();
@@ -152,6 +159,8 @@ int main(int argc, char **argv)
         (unsigned long long)skipped, (double)bytes / 1024.0 / elapsed,
         (long)elapsed);
     close(fd);
-    if (capture) fclose(capture);
+    fclose(capture);
+    nt_capture_write_meta(session, "rover", (long long)started,
+                          (long long)time(NULL), (unsigned long long)bytes);
     return bytes > 0 && frames > 0 && skipped == 0 ? 0 : 1;
 }

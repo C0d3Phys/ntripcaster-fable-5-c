@@ -39,6 +39,28 @@ Consume and validate local `BASE1` for 30 seconds:
 ./build-test/test/tools/ntrip_rover_client --config test/tools/ntrip_tools.conf
 ```
 
+The relay creates a UTC session directory and the rover joins it:
+
+```text
+capture_rtcm3_bin_UTC/20260704T183000Z/
+  relay_rtcm3.bin
+  relay.meta
+  rover_rtcm3.bin
+  rover.meta
+```
+
+Compare both captures after stopping them:
+
+```bash
+./build-test/test/tools/ntrip_capture_compare \
+  capture_rtcm3_bin_UTC/20260704T183000Z
+```
+
+The comparison aligns complete RTCM3 frames byte-for-byte. Frames before the
+rover connected and after it stopped are reported separately and are not
+counted as packet loss. `lost_inside` measures frames present at the relay but
+missing from the rover inside their common interval.
+
 The rover exits successfully only when it received bytes, decoded at least one
 valid RTCM3 frame, and found no skipped/corrupt bytes. Omit the duration and
 capture path to run until `Ctrl+C` without writing a file.

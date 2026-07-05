@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "ini.h"
@@ -63,6 +65,12 @@ static int config_handler(void *user, const char *section,
         else return 0;
         return 1;
     }
+    if (strcmp(section, "capture") == 0) {
+        if (strcmp(name, "root") == 0)
+            copy_value(c->capture_root, sizeof(c->capture_root), value);
+        else return 0;
+        return 1;
+    }
     return 0;
 }
 
@@ -72,6 +80,8 @@ int nt_config_load(const char *path, ntrip_tool_config_t *config)
     copy_value(config->upstream_port, sizeof(config->upstream_port), "2101");
     copy_value(config->local_host, sizeof(config->local_host), "127.0.0.1");
     copy_value(config->local_port, sizeof(config->local_port), "2101");
+    copy_value(config->capture_root, sizeof(config->capture_root),
+               "capture_rtcm3_bin_UTC");
     int rc = ini_parse(path, config_handler, config);
     if (rc < 0) fprintf(stderr, "cannot open config '%s'\n", path);
     else if (rc > 0) fprintf(stderr, "invalid config '%s' at line %d\n", path, rc);
@@ -109,6 +119,68 @@ int nt_config_validate_rover(const ntrip_tool_config_t *c)
     rc |= required(c->rover_user, "rover.user");
     rc |= required(c->rover_password, "rover.password");
     return rc == 0 ? 0 : -1;
+}
+
+static int make_dir(const char *path)
+{
+    if (mkdir(path, 0755) == 0 || errno == EEXIST) return 0;
+    fprintf(stderr, "mkdir '%s': %s\n", path, strerror(errno));
+    return -1;
+}
+
+int nt_capture_new_session(const char *root, char *session, size_t size)
+{
+    if (make_dir(root) != 0) return -1;
+    time_t now = time(NULL);
+    struct tm utc;
+    gmtime_r(&now, &utc);
+    char stamp[32];
+    strftime(stamp, sizeof(stamp), "%Y%m%dT%H%M%SZ", &utc);
+    if (snprintf(session, size, "%s/%s", root, stamp) >= (int)size ||
+        make_dir(session) != 0) return -1;
+
+    char pointer[1024];
+    if (snprintf(pointer, sizeof(pointer), "%s/current_session.txt", root) >=
+        (int)sizeof(pointer)) return -1;
+    FILE *fp = fopen(pointer, "w");
+    if (!fp) return -1;
+    fprintf(fp, "%s\n", session);
+    fclose(fp);
+    return 0;
+}
+
+int nt_capture_current_session(const char *root, char *session, size_t size)
+{
+    char pointer[1024];
+    if (snprintf(pointer, sizeof(pointer), "%s/current_session.txt", root) >=
+        (int)sizeof(pointer)) return -1;
+    FILE *fp = fopen(pointer, "r");
+    if (!fp) {
+        fprintf(stderr, "no active capture session; start relay first (%s)\n", pointer);
+        return -1;
+    }
+    if (!fgets(session, (int)size, fp)) {
+        fclose(fp);
+        return -1;
+    }
+    fclose(fp);
+    session[strcspn(session, "\r\n")] = '\0';
+    return session[0] ? 0 : -1;
+}
+
+int nt_capture_write_meta(const char *session, const char *role,
+                          long long start_utc, long long end_utc,
+                          unsigned long long bytes)
+{
+    char path[1024];
+    if (snprintf(path, sizeof(path), "%s/%s.meta", session, role) >=
+        (int)sizeof(path)) return -1;
+    FILE *fp = fopen(path, "w");
+    if (!fp) return -1;
+    fprintf(fp, "start_utc=%lld\nend_utc=%lld\nbytes=%llu\n",
+            start_utc, end_utc, bytes);
+    fclose(fp);
+    return 0;
 }
 
 int nt_connect(const char *host, const char *port)

@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <time.h>
 #include <unistd.h>
 
 static void usage(const char *program)
@@ -82,6 +83,8 @@ int main(int argc, char **argv)
     }
     ntrip_tool_config_t config;
     memset(&config, 0, sizeof(config));
+    snprintf(config.capture_root, sizeof(config.capture_root),
+             "capture_rtcm3_bin_UTC");
     if (argc == 3 && strcmp(argv[1], "--config") == 0) {
         if (nt_config_load(argv[2], &config) != 0 ||
             nt_config_validate_relay(&config) != 0) return 2;
@@ -120,11 +123,24 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    char session[1024], capture_path[1200];
+    if (nt_capture_new_session(config.capture_root, session, sizeof(session)) != 0 ||
+        snprintf(capture_path, sizeof(capture_path), "%s/relay_rtcm3.bin", session) >=
+            (int)sizeof(capture_path)) {
+        close(local); close(upstream); return 1;
+    }
+    FILE *capture = fopen(capture_path, "wb");
+    if (!capture) {
+        perror(capture_path); close(local); close(upstream); return 1;
+    }
+    long long started = (long long)time(NULL);
+
     uint64_t total = 0;
     if (upstream_response.payload_len) {
         if (nt_send_all(local, upstream_response.payload,
                         upstream_response.payload_len) != 0) goto failed;
         total += upstream_response.payload_len;
+        fwrite(upstream_response.payload, 1, upstream_response.payload_len, capture);
     }
     fprintf(stderr, "relay active: %s:%s/%s -> %s:%s/%s\n",
             config.upstream_host, config.upstream_port, config.upstream_mount,
@@ -136,6 +152,7 @@ int main(int argc, char **argv)
         if (n > 0) {
             if (nt_send_all(local, buf, (size_t)n) != 0) goto failed;
             total += (uint64_t)n;
+            fwrite(buf, 1, (size_t)n, capture);
             continue;
         }
         if (n < 0 && errno == EINTR) continue;
@@ -143,6 +160,9 @@ int main(int argc, char **argv)
                 (unsigned long long)total);
         break;
     }
+    fclose(capture);
+    nt_capture_write_meta(session, "relay", started, (long long)time(NULL),
+                          (unsigned long long)total);
     close(local);
     close(upstream);
     return 0;
@@ -150,6 +170,9 @@ int main(int argc, char **argv)
 failed:
     fprintf(stderr, "relay output failed after %llu bytes\n",
             (unsigned long long)total);
+    fclose(capture);
+    nt_capture_write_meta(session, "relay", started, (long long)time(NULL),
+                          (unsigned long long)total);
     close(local);
     close(upstream);
     return 1;

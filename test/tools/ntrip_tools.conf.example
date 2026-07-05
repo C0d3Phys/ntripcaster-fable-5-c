@@ -22,4 +22,9 @@ user = rover1
 password = passrover1
 seconds = 30
 ; Leave empty to avoid writing a capture.
-output = capture.rtcm3
+output =
+
+[capture]
+; Relay creates root/<UTC timestamp>/relay_rtcm3.bin. Rover joins the latest
+; relay session and writes root/<UTC timestamp>/rover_rtcm3.bin.
+root = capture_rtcm3_bin_UTC

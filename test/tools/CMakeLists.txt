@@ -8,5 +8,9 @@ target_link_libraries(ntrip_source_relay PRIVATE ntrip_test_common)
 add_executable(ntrip_rover_client ntrip_rover_client.c)
 target_link_libraries(ntrip_rover_client PRIVATE ntrip_test_common ntripcaster_core)
 
+add_executable(ntrip_capture_compare ntrip_capture_compare.c)
+target_link_libraries(ntrip_capture_compare PRIVATE ntrip_test_common ntripcaster_core)
+
 add_test(NAME ntrip_tools_help_relay COMMAND ntrip_source_relay --help)
 add_test(NAME ntrip_tools_help_rover COMMAND ntrip_rover_client --help)
+add_test(NAME ntrip_tools_help_compare COMMAND ntrip_capture_compare --help)

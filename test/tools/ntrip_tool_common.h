@@ -27,6 +27,7 @@ typedef struct {
     char rover_password[256];
     long rover_seconds;
     char rover_output[512];
+    char capture_root[512];
 } ntrip_tool_config_t;
 
 int  nt_connect(const char *host, const char *port);
@@ -41,5 +42,10 @@ int  nt_config_validate_rover(const ntrip_tool_config_t *config);
 void nt_install_signal_handlers(void);
 int  nt_running(void);
 void nt_stop(void);
+int  nt_capture_new_session(const char *root, char *session, size_t size);
+int  nt_capture_current_session(const char *root, char *session, size_t size);
+int  nt_capture_write_meta(const char *session, const char *role,
+                           long long start_utc, long long end_utc,
+                           unsigned long long bytes);
 
 #endif

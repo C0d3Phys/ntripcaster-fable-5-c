@@ -105,8 +105,11 @@ esperas indefinidas.
   forma indivisible; varios workers pueden superar temporalmente el límite.
 - Las estadísticas de mountpoint se escriben desde workers y se leen/resetan
   desde el sweep sin atomics ni un snapshot protegido.
-- `bytes_tx` se incrementa al copiar bytes del ring al `wbuf` y otra vez al
-  enviarlos al socket, por lo que no representa una única métrica.
+- [CORREGIDO 2026-07-04 tras verificación en código] `bytes_tx` se incrementa
+  ÚNICAMENTE en `flush_write_buf()` al enviar al socket (`broker_client_fill`
+  no lo toca, tiene comentario explícito). No hay doble conteo. La mejora que
+  SÍ aplica: separar `bytes_queued` (copiado del ring) de `bytes_sent`
+  (aceptado por el socket) para diagnosticar backpressure por cliente.
 
 **Propuesta:** reservar cupos con CAS o bajo el lock del registro y revertir la
 reserva en todo camino de error; publicar snapshots coherentes de estadísticas;
@@ -139,6 +142,15 @@ credenciales de ejemplo que podrían confundirse con secretos reales.
   estructura y sin filtrar información sensible.
 - Existe migración documentada desde el formato actual.
 - Los logs nunca contienen `Authorization`, passwords ni Base64 sin censurar.
+  [YA CUMPLIDO desde build 1.001.1.09: `ntrip_debug_request()` enmascara
+  `SOURCE ***` y `Authorization: Basic ***` — verificado en vivo.]
+
+**Nota de unificación (2026-07-04):** la elección de hash está decidida en
+`FEATURE_improvements_FASE_A` §D (documento maestro de decisiones): PBKDF2-SHA256
+vendoreado como base (zero-dependency, coherente con el proyecto), con Argon2id
+como opción detrás de flag de compilación si se acepta la dependencia. Este
+párrafo reemplaza la sugerencia abierta Argon2id/bcrypt/scrypt de arriba —
+`FEATURE_registry_sqlite_dashboard.md` §5 ya coincidía con PBKDF2.
 
 ### IMP-03 — Transporte cifrado
 
@@ -162,6 +174,14 @@ la lógica criptográfica con el hot path antes de estabilizarlo.
 Los tests actuales registrados en CTest sólo validan las opciones `--help`.
 Las herramientas de relay, rover y comparación son valiosas, pero requieren
 orquestación manual.
+
+**Inventario 2026-07-04:** los escenarios 1-6, 9, 10, 11 y parcialmente 16 de
+la lista de abajo YA existen como scripts bash/python de las sesiones de
+verificación (auth v1/v2 válida/inválida, payload pipelineado, frames
+fragmentados por TCP, CRC roto + ruido, límites, timeouts, reload SIGHUP en
+caliente, carga de 200 clientes). Falta formalizarlos en CTest con puertos
+dinámicos — trabajo de empaquetado, no de creación. Ver plan concreto en
+`FEATURE_improvements_FASE_A`.
 
 Agregar pruebas automáticas para:
 
@@ -218,6 +238,12 @@ tests inestables.
 README y `git status` permanece limpio después del build y los tests.
 
 ## 4. Prioridad media — configuración y operación
+
+> **Referencias cruzadas:** IMP-07 amplía `FEATURE_relay_capacity_reload.md`
+> §2.4 (config_snapshot_t); IMP-09 y FEAT-05 solapan ~80% con
+> `FEATURE_registry_sqlite_dashboard.md` (esquema SQL, admin API, dashboard,
+> anti-fuerza-bruta). Ante conflicto entre documentos, este roadmap manda en
+> PRIORIDADES y aquellos mandan en DISEÑO técnico ya decidido.
 
 ### IMP-07 — Snapshot unificado y reload completo
 
@@ -300,6 +326,11 @@ rover tiene prioridad y con qué frecuencia máxima.
 
 ### FEAT-04 — Reconexión supervisada del relay externo
 
+[Nota 2026-07-04: `ntrip_source_relay` no está en el árbol actual del repo —
+esta sección aplica al futuro "agente de base" estilo str2str planificado
+sobre librtk (ver `RTKLIB-2.4.3-b34/GUIA_RTKLIB_MOTOR.md` §3.2), o a la
+herramienta si se agrega después.]
+
 Las herramientas actuales son diagnósticas. Si `ntrip_source_relay` se convierte
 en servicio, añadir:
 
@@ -326,7 +357,9 @@ CSRF si utiliza cookies.
 ## 6. Mejoras de rendimiento a medir, no asumir
 
 - Evitar inicializar todos los rings de mountpoints al arrancar; reservarlos al
-  crear o activar el mountpoint.
+  crear o activar el mountpoint. [Ya medido: los ~35 MB de RSS al arranque son
+  el memset del broker completo (128 × 256 KB); con init lazy el arranque
+  bajaría a ~2 MB. Beneficio real solo de RAM, cero de CPU.]
 - Medir el coste de un `epoll_ctl(MOD)` por rover y epoch.
 - Evaluar batching de wakeups solamente si aparece como cuello de botella.
 - Medir copias de memoria source → ring → write buffer → socket.

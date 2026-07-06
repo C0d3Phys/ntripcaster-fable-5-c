@@ -1,0 +1,3 @@
+# Los scripts ejecutados dentro de Linux/Docker deben conservar finales LF.
+*.sh text eol=lf
+Dockerfile text eol=lf

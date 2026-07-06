@@ -1,0 +1,16 @@
+# Nada de esto hace falta dentro del build context de Docker -- lo
+# mismo que ya ignora git (ver .gitignore), mas los artefactos que
+# solo tienen sentido en el host.
+build*/
+*.rar
+*.zip
+*.log
+capture_rtcm3_bin_UTC/
+.git/
+.github/
+.agents/
+.codex/
+conf/ntripcaster.conf
+test/tools/ntrip_tools.conf
+docker/conf/
+docker/logs/

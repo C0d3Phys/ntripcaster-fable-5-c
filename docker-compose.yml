@@ -1,0 +1,27 @@
+services:
+  ntripcaster:
+    build: .
+    image: ntripcaster:latest
+    container_name: ntripcaster
+    restart: unless-stopped
+    ports:
+      - "2101:2101"
+    volumes:
+      # Persiste el conf generado (o el tuyo propio) entre reinicios del
+      # contenedor -- si el archivo no existe la primera vez, el
+      # entrypoint lo genera solo con las credenciales de abajo.
+      - ./docker/conf:/app/conf
+    environment:
+      NTRIP_PORT: "2101"
+      NTRIP_MOUNT: "BASE1"
+      # CREDENCIALES DE PRUEBA -- cambialas antes de exponer esto a una
+      # red que no controles (ver docker/README.md).
+      NTRIP_SOURCE_PASSWORD: "passbase123"
+      NTRIP_ROVER1_USER: "rover1"
+      NTRIP_ROVER1_PASSWORD: "passrover1"
+      NTRIP_ROVER2_USER: "rover2"
+      NTRIP_ROVER2_PASSWORD: "passrover2"
+      NTRIP_CASTER_NAME: "NtripCaster-Docker"
+      NTRIP_OPERATOR: "unknown"
+      NTRIP_COUNTRY: "DEU"
+      NTRIP_LOG_LEVEL: "info"

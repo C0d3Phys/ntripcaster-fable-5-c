@@ -1,0 +1,19 @@
+# Directorios de build (CMake genera build-<version>/ por convencion del
+# proyecto -- ver build.sh). Nunca versionar artefactos de compilacion.
+build*/
+
+# Logs en runtime
+*.log
+
+# Capturas RTCM3 de los tools de test (test/tools/ntrip_source_relay,
+# ntrip_rover_client) -- son datos binarios generados localmente.
+capture_rtcm3_bin_UTC/
+
+# Archivos comprimidos sueltos (backups manuales, no deberian vivir en git)
+*.rar
+*.zip
+
+# Conf real del caster -- credenciales hasheadas pero igual no
+# corresponde versionar la config de un despliegue puntual. Usar
+# conf/ntripcaster.conf.example como plantilla.
+conf/ntripcaster.conf

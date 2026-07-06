@@ -1,8 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/mnt/c/Users/ING_CESAR_TAPIA/Desktop/Claude Cowork/App/ntripcaster/wsl-project-tested/build-1.001.1.10/cmake_install.cmake",
-		"/mnt/c/Users/ING_CESAR_TAPIA/Desktop/Claude Cowork/App/ntripcaster/wsl-project-tested/build-1.001.1.10/src/cmake_install.cmake"
-	],
-	"Parallel" : false
-}

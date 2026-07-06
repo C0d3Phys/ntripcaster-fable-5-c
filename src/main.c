@@ -10,6 +10,7 @@
 #include "core/io_engine.h"
 #include "core/logger.h"
 #include "protocol/auth.h"
+#include "protocol/pwhash.h"
 
 #ifndef DEFAULT_LOG_PATH
 #define DEFAULT_LOG_PATH "ntripcaster.log"
@@ -55,8 +56,54 @@ static void main_tick(void *ctx)
     }
 }
 
+/*
+ * hash_password_cli — Modo utilitario (IMP-02): lee una password de
+ * stdin (una línea, sin eco -- no hay terminal especial acá, es una
+ * herramienta de operador para generar la línea del conf, no un login
+ * interactivo) y escribe a stdout el string serializado listo para
+ * pegar en [source]/[client:*]. No toca el conf, no arranca nada del
+ * caster. Uso:
+ *   echo -n 'passbase123' | ./ntripcaster --hash-password
+ */
+static int hash_password_cli(void)
+{
+    char *line = NULL;
+    size_t cap = 0;
+    ssize_t n = getline(&line, &cap, stdin);
+    if (n < 0) {
+        fprintf(stderr, "hash-password: no se pudo leer password de stdin\n");
+        free(line);
+        return 1;
+    }
+    while (n > 0 && (line[n - 1] == '\n' || line[n - 1] == '\r')) {
+        line[--n] = '\0';
+    }
+    if (n == 0) {
+        fprintf(stderr, "hash-password: password vacia (stdin)\n");
+        free(line);
+        return 1;
+    }
+
+    char out[PWHASH_STRING_MAX];
+    int rc = pwhash_create(line, PWHASH_DEFAULT_ITERATIONS, out, sizeof(out));
+    /* Borrar la password de la memoria del proceso apenas se usó -- no
+     * queda dando vueltas en el heap más de lo necesario. */
+    memset(line, 0, (size_t)n);
+    free(line);
+    if (rc != 0) {
+        fprintf(stderr, "hash-password: fallo generando el hash\n");
+        return 1;
+    }
+    printf("%s\n", out);
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
+    if (argc > 1 && strcmp(argv[1], "--hash-password") == 0) {
+        return hash_password_cli();
+    }
+
     /*
      * Configuración general: defaults < [caster] del conf < argv/env.
      *   ./ntripcaster [puerto] [conf] [log]

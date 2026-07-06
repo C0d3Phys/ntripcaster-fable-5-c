@@ -1,1 +1,0 @@
-/usr/bin/cc -g -Wl,--dependency-file=CMakeFiles/ntripcaster.dir/link.d CMakeFiles/ntripcaster.dir/main.c.o -o ntripcaster  libntripcaster_core.a ../libinih_vendor.a -lm

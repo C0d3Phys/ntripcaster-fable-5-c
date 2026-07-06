@@ -198,12 +198,25 @@ void mp_update_receiver(mountpoint_t *mp, const rtcm3_receiver_t *rx)
  *
  * El decoder RTCM3 extrae coords/logging sin bloquear el relay.
  */
-/* Cuenta un frame por tipo de mensaje (tabla chica, orden de aparición) */
+/*
+ * mp_count_msg_type — Cuenta un frame por tipo de mensaje (tabla chica,
+ * orden de aparición).
+ *
+ * IMP-01D: esta tabla (msg_stats[]/msg_stats_n) la escribe el thread del
+ * source (llamado desde mp_relay) y la LEE report_mount_stats() desde el
+ * accept thread cada ~30s. A diferencia de los contadores simples de
+ * arriba, "agregar un tipo nuevo" es leer N, comparar contra N entradas,
+ * y tal vez escribir en la entrada N -- no se puede expresar como un
+ * único load/store atómico. Se protege con el rwlock que el mountpoint
+ * ya tiene para source/clients (wrlock acá, rdlock en el reporte).
+ */
 static void mp_count_msg_type(mountpoint_t *mp, uint16_t type)
 {
+    pthread_rwlock_wrlock(&mp->lock);
     for (int i = 0; i < mp->msg_stats_n; i++) {
         if (mp->msg_stats[i].type == type) {
             mp->msg_stats[i].count++;
+            pthread_rwlock_unlock(&mp->lock);
             return;
         }
     }
@@ -212,6 +225,7 @@ static void mp_count_msg_type(mountpoint_t *mp, uint16_t type)
         mp->msg_stats[mp->msg_stats_n].count = 1;
         mp->msg_stats_n++;
     }
+    pthread_rwlock_unlock(&mp->lock);
 }
 
 size_t mp_relay(mountpoint_t *mp, const uint8_t *data, size_t len)

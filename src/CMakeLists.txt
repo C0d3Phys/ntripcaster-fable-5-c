@@ -16,6 +16,7 @@ set(CORE_SOURCES
   protocol/ntrip_v2.c
   protocol/sourcetable.c
   protocol/auth.c
+  protocol/pwhash.c
 )
 
 add_library(ntripcaster_core STATIC ${CORE_SOURCES})
@@ -24,6 +25,7 @@ target_link_libraries(ntripcaster_core
   PUBLIC
     inih_vendor
     uthash_vendor
+    sha256_vendor
     Threads::Threads
   PRIVATE
     m

@@ -89,9 +89,23 @@ typedef struct conn_t {
     time_t           connected_at;
     time_t           last_active;
 
-    /* Estadísticas */
+    /* Estadísticas.
+     *
+     * IMP-01D: bytes_tx se incrementaba DOS VECES por el mismo byte --
+     * una en broker_client_fill() al copiar del ring al write_buf
+     * ("encolado para enviar"), y otra en flush_write_buf() al hacer el
+     * write() real al socket ("transmitido de verdad"). Todo "tx=" que
+     * se veía en los logs (broker_conn_free, io_engine) era ~2x el
+     * tráfico real. Separados:
+     *   bytes_queued -- bytes copiados del ring al write_buf del cliente
+     *                   (cuánto se preparó para enviar; incluye lo que
+     *                   todavía puede estar pendiente en el buffer).
+     *   bytes_tx     -- bytes que write(2) confirmó haber escrito al fd
+     *                   (el número real de "transmitido"). ÚNICA fuente
+     *                   de verdad para reportar tráfico saliente. */
     uint64_t         bytes_rx;
     uint64_t         bytes_tx;
+    uint64_t         bytes_queued;
 
     /* Para la lista de clientes del mountpoint (intrusive linked list) */
     struct conn_t   *next;

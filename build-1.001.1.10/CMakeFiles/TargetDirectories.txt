@@ -1,7 +1,0 @@
-/mnt/c/Users/ING_CESAR_TAPIA/Desktop/Claude Cowork/App/ntripcaster/wsl-project-tested/build-1.001.1.10/CMakeFiles/inih_vendor.dir
-/mnt/c/Users/ING_CESAR_TAPIA/Desktop/Claude Cowork/App/ntripcaster/wsl-project-tested/build-1.001.1.10/CMakeFiles/edit_cache.dir
-/mnt/c/Users/ING_CESAR_TAPIA/Desktop/Claude Cowork/App/ntripcaster/wsl-project-tested/build-1.001.1.10/CMakeFiles/rebuild_cache.dir
-/mnt/c/Users/ING_CESAR_TAPIA/Desktop/Claude Cowork/App/ntripcaster/wsl-project-tested/build-1.001.1.10/src/CMakeFiles/ntripcaster_core.dir
-/mnt/c/Users/ING_CESAR_TAPIA/Desktop/Claude Cowork/App/ntripcaster/wsl-project-tested/build-1.001.1.10/src/CMakeFiles/ntripcaster.dir
-/mnt/c/Users/ING_CESAR_TAPIA/Desktop/Claude Cowork/App/ntripcaster/wsl-project-tested/build-1.001.1.10/src/CMakeFiles/edit_cache.dir
-/mnt/c/Users/ING_CESAR_TAPIA/Desktop/Claude Cowork/App/ntripcaster/wsl-project-tested/build-1.001.1.10/src/CMakeFiles/rebuild_cache.dir

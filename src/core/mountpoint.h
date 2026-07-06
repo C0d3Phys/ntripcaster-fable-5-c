@@ -22,6 +22,7 @@
 #endif
 
 #include <stdint.h>
+#include <stdatomic.h>
 #include <pthread.h>
 #include <time.h>
 #include "ring_buffer.h"
@@ -41,9 +42,12 @@ typedef struct mountpoint_t {
     /* Source actual (solo uno) */
     conn_t  *source;
 
-    /* Lista doblemente enlazada de clientes */
+    /* Lista doblemente enlazada de clientes.
+     * client_count es atómico (IMP-01D): se escribe bajo wrlock en
+     * mp_client_subscribe/unsubscribe, pero se LEE sin lock desde
+     * report_mount_stats() y broker_sourcetable_fill() en otro thread. */
     conn_t  *clients_head;
-    int      client_count;
+    _Atomic int client_count;
 
     /* Ring buffer de broadcast — source escribe, clientes leen */
     ring_buffer_t ring;
@@ -62,30 +66,50 @@ typedef struct mountpoint_t {
     int      carrier;           /* 0/1/2 */
     int      nmea;              /* 1 = acepta GGA para NEAREST */
 
-    /* Estadísticas */
-    uint64_t bytes_relayed;
-    uint64_t frames_relayed;
+    /* Estadísticas (IMP-01D: atómicas -- se escriben desde el thread
+     * worker del source en mp_relay() y se LEEN desde el accept thread
+     * en report_mount_stats() cada ~30s, sin ningún lock en el medio.
+     * Antes eran uint64_t planos: carrera de datos real bajo el
+     * standard de C, aunque en la práctica x86-64 rara vez se viera un
+     * torn read de 64 bits. _Atomic con memory_order_relaxed alcanza --
+     * no hay ordenamiento entre estos contadores y otra cosa, solo
+     * necesitamos que cada load/store individual sea atómico). */
+    _Atomic uint64_t bytes_relayed;
+    _Atomic uint64_t frames_relayed;
     time_t   source_connected_at;
 
     /* ── Decode incremental del stream (integridad, punto debug) ──
      * Los frames RTCM3 llegan partidos entre read()s del socket; sin
      * reensamblar, el decode per-chunk pierde frames y reporta basura
-     * que no existe. dec_buf acumula el tail incompleto entre chunks. */
+     * que no existe. dec_buf acumula el tail incompleto entre chunks.
+     * dec_buf/dec_len NO son atómicos a propósito: solo los toca el
+     * thread del source dentro de mp_relay(), nunca el reporte. */
 #define MP_DEC_BUF_SIZE   8192
 #define MP_MSG_STATS_MAX  24
     uint8_t  dec_buf[MP_DEC_BUF_SIZE];
     uint32_t dec_len;
-    uint64_t dec_frames_ok;       /* frames con CRC válido */
-    uint64_t dec_bytes_skipped;   /* bytes descartados: preamble falso/CRC malo */
+    _Atomic uint64_t dec_frames_ok;      /* frames con CRC válido */
+    _Atomic uint64_t dec_bytes_skipped;  /* bytes descartados: preamble falso/CRC malo */
+
+    /* msg_stats[]/msg_stats_n: tabla chica de tamaño variable (conteo
+     * por tipo de mensaje RTCM3) -- no se presta bien a atomics por
+     * campo (agregar un tipo nuevo es "leer N, comparar, quizás
+     * escribir en N+1", no una sola palabra). Se protege con `lock`
+     * (el mismo rwlock de source/clients): mp_count_msg_type() toma
+     * wrlock, report_mount_stats() toma rdlock para leerla. El costo
+     * es un lock/unlock por FRAME decodeado -- barato frente a la
+     * frecuencia real de mensajes RTCM3 (unos pocos Hz por tipo). */
     struct { uint16_t type; uint32_t count; } msg_stats[MP_MSG_STATS_MAX];
     int      msg_stats_n;
 
-    /* snapshot para el reporte periódico (deltas cada ~30s) */
+    /* snapshot para el reporte periódico (deltas cada ~30s) -- SOLO
+     * los toca report_mount_stats(), siempre el mismo thread (accept
+     * thread), así que no necesitan ser atómicos. */
     uint64_t rpt_bytes;
     uint64_t rpt_frames;
     uint64_t rpt_skipped;
 
-    /* Lock — protege source y clients_head */
+    /* Lock — protege source, clients_head y msg_stats/msg_stats_n */
     pthread_rwlock_t lock;
 
 } mountpoint_t;

@@ -111,21 +111,59 @@ void broker_conn_free(broker_t *b, conn_t *conn)
         }
     }
 
-    log_info("broker: conn_free fd=%d type=%s  rx=%llu tx=%llu bytes",
+    /* tx= es lo REALMENTE transmitido (write() confirmado); queued= es
+     * lo copiado del ring al write_buf -- si queued > tx quedó algo sin
+     * flushear al cerrar (ej. cliente lento, socket lleno). Antes de
+     * IMP-01D, tx incluía queued (doble conteo) y siempre parecía 2x. */
+    log_info("broker: conn_free fd=%d type=%s  rx=%llu tx=%llu queued=%llu bytes",
              conn->fd, conn_type_name(conn->type),
              (unsigned long long)conn->bytes_rx,
-             (unsigned long long)conn->bytes_tx);
+             (unsigned long long)conn->bytes_tx,
+             (unsigned long long)conn->bytes_queued);
 
     free(conn);
 }
 
 /* ── Registro después de handshake ────────────────────────────────── */
 
+/*
+ * reserve_slot — CAS-loop para reservar UN cupo en `counter` sin exceder
+ * `max` (IMP-01D). El check-then-increment anterior (atomic_load() >= max
+ * seguido de un atomic_fetch_add() separado) tenía una ventana TOCTOU:
+ * dos threads podían leer el mismo valor por debajo del límite y ambos
+ * incrementar, dejando el contador en max+1 (o más, con suficiente
+ * concurrencia) bajo carga real de conexiones simultáneas.
+ *
+ * Con compare_exchange, la reserva y el chequeo del límite son una sola
+ * operación atómica: si el CAS falla porque OTRO thread ya cambió el
+ * valor, `cur` queda actualizado al valor real y se reintenta desde ahí
+ * (bucle acotado por el propio límite, no puede girar para siempre salvo
+ * que haya contención genuina, que es exactamente el caso que atendemos).
+ *
+ * Retorna 0 si reservó el cupo (contador ya incrementado), -1 si estaba
+ * lleno (contador SIN modificar).
+ */
+static int reserve_slot(_Atomic int *counter, int max)
+{
+    int cur = atomic_load_explicit(counter, memory_order_relaxed);
+    for (;;) {
+        if (cur >= max) return -1;
+        if (atomic_compare_exchange_weak_explicit(
+                counter, &cur, cur + 1,
+                memory_order_acq_rel, memory_order_relaxed))
+            return 0;
+        /* CAS falló: `cur` ya fue actualizado al valor actual por la
+         * propia llamada -- se reintenta sin volver a leer a mano. */
+    }
+}
+
 int broker_source_register(broker_t *b, conn_t *conn, const char *mountpoint_name)
 {
-    /* Enforce real de max_sources (antes era solo decorativo en el log —
-     * FEATURE_relay_capacity_reload §1.2 #1) */
-    if (atomic_load(&b->active_sources) >= b->config.max_sources) {
+    /* Enforce real de max_sources -- reserva atómica del cupo ANTES de
+     * tocar el mountpoint (IMP-01D: ver reserve_slot arriba). Si algo
+     * después falla, hay que liberar la reserva (atomic_fetch_sub) antes
+     * de cada `return -1`. */
+    if (reserve_slot(&b->active_sources, b->config.max_sources) != 0) {
         log_warn("broker: max_sources (%d) alcanzado, rechazando mp=%s fd=%d",
                  b->config.max_sources, mountpoint_name, conn->fd);
         return -1;
@@ -133,12 +171,14 @@ int broker_source_register(broker_t *b, conn_t *conn, const char *mountpoint_nam
 
     mountpoint_t *mp = mp_get_or_create(&b->mounts, mountpoint_name);
     if (!mp) {
+        atomic_fetch_sub(&b->active_sources, 1);
         log_warn("broker: limite de mountpoints alcanzado, rechazando source "
                  "mp=%s fd=%d", mountpoint_name, conn->fd);
         return -1;
     }
 
     if (mp_source_attach(mp, conn) != 0) {
+        atomic_fetch_sub(&b->active_sources, 1);
         log_warn("broker: mount '%s' ya tiene un source activo (fd=%d rechazado)",
                  mountpoint_name, conn->fd);
         return -1;
@@ -148,14 +188,14 @@ int broker_source_register(broker_t *b, conn_t *conn, const char *mountpoint_nam
     conn->state = CONN_STATE_SOURCE_ACTIVE;
     strncpy(conn->mountpoint, mountpoint_name, sizeof(conn->mountpoint) - 1);
 
-    atomic_fetch_add(&b->active_sources, 1);
+    /* Cupo ya reservado arriba -- NO incrementar de nuevo acá. */
     return 0;
 }
 
 int broker_client_register(broker_t *b, conn_t *conn, const char *mountpoint_name)
 {
-    /* Enforce real de max_clients (FEATURE_relay_capacity_reload §1.2 #1) */
-    if (atomic_load(&b->active_clients) >= b->config.max_clients) {
+    /* Enforce real de max_clients -- misma reserva atómica que arriba. */
+    if (reserve_slot(&b->active_clients, b->config.max_clients) != 0) {
         log_warn("broker: max_clients (%d) alcanzado, rechazando mp=%s fd=%d",
                  b->config.max_clients, mountpoint_name, conn->fd);
         return -1;
@@ -163,12 +203,14 @@ int broker_client_register(broker_t *b, conn_t *conn, const char *mountpoint_nam
 
     mountpoint_t *mp = mp_find(&b->mounts, mountpoint_name);
     if (!mp || !mp->active) {
+        atomic_fetch_sub(&b->active_clients, 1);
         log_warn("broker: mount '%s' no existe o sin source activo "
                  "(cliente fd=%d rechazado)", mountpoint_name, conn->fd);
         return -1;
     }
 
     if (mp_client_subscribe(mp, conn) != 0) {
+        atomic_fetch_sub(&b->active_clients, 1);
         log_warn("broker: mount '%s' alcanzo el limite de clientes "
                  "(fd=%d rechazado)", mountpoint_name, conn->fd);
         return -1;
@@ -178,7 +220,7 @@ int broker_client_register(broker_t *b, conn_t *conn, const char *mountpoint_nam
     conn->state = CONN_STATE_CLIENT_ACTIVE;
     strncpy(conn->mountpoint, mountpoint_name, sizeof(conn->mountpoint) - 1);
 
-    atomic_fetch_add(&b->active_clients, 1);
+    /* Cupo ya reservado arriba -- NO incrementar de nuevo acá. */
     return 0;
 }
 
@@ -229,9 +271,12 @@ ssize_t broker_client_fill(broker_t *b, conn_t *client)
                         client->wbuf.data + tail, chunk);
 
     if (n > 0) {
-        client->wbuf.tail += (uint32_t)n;
-        client->bytes_tx  += (uint64_t)n;
-        client->last_active = time(NULL);
+        client->wbuf.tail    += (uint32_t)n;
+        /* IMP-01D: esto es "encolado", NO "transmitido" -- ver el
+         * comentario de bytes_queued/bytes_tx en conn.h. El conteo real
+         * de tx lo lleva flush_write_buf() cuando el write(2) confirma. */
+        client->bytes_queued += (uint64_t)n;
+        client->last_active   = time(NULL);
     }
 
     return n;

@@ -12,8 +12,10 @@
  * después no cambie esta interfaz pública.
  *
  * Fail closed: si un mountpoint/usuario no está en la tabla, se rechaza.
- * Password en texto plano (strcmp) por ahora -- hashear + comparación en
- * tiempo constante es un TODO antes de exponer esto fuera de testing.
+ * Passwords hasheadas (PBKDF2-HMAC-SHA256, ver protocol/pwhash.h) --
+ * IMP-02. El conf SOLO guarda el string "pbkdf2-sha256$iter$salt$hash";
+ * una entrada sin ese formato se rechaza siempre (ver pwhash_looks_valid
+ * y el warning al cargar en auth.c).
  */
 #ifndef NTRIPCASTER_AUTH_H
 #define NTRIPCASTER_AUTH_H

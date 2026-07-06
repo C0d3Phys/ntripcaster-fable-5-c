@@ -2,6 +2,7 @@
  * auth.c — Implementación del registro de credenciales + Basic Auth
  */
 #include "auth.h"
+#include "pwhash.h"
 #include "../core/logger.h"
 
 #include <stdio.h>
@@ -13,16 +14,21 @@
 #include "uthash.h"   /* vendor/uthash */
 
 /* ── Tablas en RAM ────────────────────────────────────────────────── */
+/*
+ * password[] guarda el string serializado "pbkdf2-sha256$iter$salt$hash"
+ * (ver pwhash.h), NUNCA texto plano -- IMP-02. PWHASH_STRING_MAX cubre el
+ * caso real con margen; el tamaño de campo no cambia el formato.
+ */
 
 typedef struct {
     char mountpoint[64];   /* clave */
-    char password[128];
+    char password[PWHASH_STRING_MAX];
     UT_hash_handle hh;
 } source_entry_t;
 
 typedef struct {
     char key[192];         /* clave: "mountpoint:usuario" */
-    char password[128];
+    char password[PWHASH_STRING_MAX];
     UT_hash_handle hh;
 } client_entry_t;
 
@@ -63,6 +69,11 @@ static int auth_ini_handler(void *user, const char *section,
         if (!e) return 0;
         snprintf(e->mountpoint, sizeof(e->mountpoint), "%s", name);
         snprintf(e->password,   sizeof(e->password),   "%s", value);
+        if (!pwhash_looks_valid(e->password)) {
+            log_warn("auth: [source] %s tiene una password SIN HASHEAR -- "
+                     "va a rechazar SIEMPRE (fail closed). Regenerala con "
+                     "'ntripcaster --hash-password'.", name);
+        }
         HASH_ADD_STR(t->sources, mountpoint, e);
         return 1;
     }
@@ -78,6 +89,11 @@ static int auth_ini_handler(void *user, const char *section,
          * seguro. */
         snprintf(e->key, sizeof(e->key), "%s:%s", mountpoint, name);
         snprintf(e->password, sizeof(e->password), "%s", value);
+        if (!pwhash_looks_valid(e->password)) {
+            log_warn("auth: [client:%s] %s tiene una password SIN HASHEAR -- "
+                     "va a rechazar SIEMPRE (fail closed). Regenerala con "
+                     "'ntripcaster --hash-password'.", mountpoint, name);
+        }
         HASH_ADD_STR(t->clients, key, e);
         return 1;
     }
@@ -199,7 +215,7 @@ int auth_check_source(const char *mountpoint, const char *password)
     pthread_rwlock_rdlock(&g_lock);
     source_entry_t *e = NULL;
     HASH_FIND_STR(g_sources, mountpoint, e);
-    if (e && strcmp(e->password, password) == 0)
+    if (e && pwhash_verify(password, e->password) == 0)
         ok = 0;
     pthread_rwlock_unlock(&g_lock);
     return ok;
@@ -216,7 +232,7 @@ int auth_check_client(const char *mountpoint, const char *user, const char *pass
     pthread_rwlock_rdlock(&g_lock);
     client_entry_t *e = NULL;
     HASH_FIND_STR(g_clients, key, e);
-    if (e && strcmp(e->password, password) == 0)
+    if (e && pwhash_verify(password, e->password) == 0)
         ok = 0;
     pthread_rwlock_unlock(&g_lock);
     return ok;

@@ -447,14 +447,21 @@ static void report_mount_stats(io_engine_t *eng, int interval_s)
         mp->rpt_frames  = mp->dec_frames_ok;
         mp->rpt_skipped = mp->dec_bytes_skipped;
 
+        /* msg_stats/msg_stats_n no son atómicos (tabla de tamaño
+         * variable, ver el comentario en mountpoint.h) -- se leen bajo
+         * rdlock, coincidiendo con el wrlock que toma mp_count_msg_type()
+         * en el thread del source (IMP-01D). */
         char types[256];
         int  tp = 0;
-        for (int t = 0; t < mp->msg_stats_n && tp < (int)sizeof(types) - 16; t++) {
+        pthread_rwlock_rdlock(&mp->lock);
+        int msg_stats_n = mp->msg_stats_n;
+        for (int t = 0; t < msg_stats_n && tp < (int)sizeof(types) - 16; t++) {
             tp += snprintf(types + tp, sizeof(types) - (size_t)tp, "%s%u:%u",
                            t ? " " : "",
                            mp->msg_stats[t].type, mp->msg_stats[t].count);
         }
-        if (mp->msg_stats_n == 0) snprintf(types, sizeof(types), "-");
+        pthread_rwlock_unlock(&mp->lock);
+        if (msg_stats_n == 0) snprintf(types, sizeof(types), "-");
 
         log_info("stats: mount=%s %s clientes=%d  %.1f KB/s  "
                  "frames+%llu (tot %llu)  corrupto+%lluB (tot %llu)  tipos: %s",

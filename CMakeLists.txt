@@ -34,6 +34,9 @@ target_include_directories(inih_vendor PUBLIC vendor/inih)
 add_library(uthash_vendor INTERFACE)
 target_include_directories(uthash_vendor INTERFACE vendor/uthash)
 
+add_library(sha256_vendor STATIC vendor/sha256/sha256.c)
+target_include_directories(sha256_vendor PUBLIC vendor/sha256)
+
 add_subdirectory(src)
 
 if(EXISTS ${CMAKE_SOURCE_DIR}/test/CMakeLists.txt)

@@ -1,0 +1,68 @@
+; ntripcaster.conf.example — Plantilla de conf real (copiar a
+; conf/ntripcaster.conf, que está en .gitignore y NUNCA se commitea).
+;
+; Formato INI, parseado con inih (vendor/inih, ya en el build).
+;
+; [source]
+;   mountpoint = password
+;   Usado por el comando "SOURCE <password> <mountpoint>" (v1). No lleva
+;   usuario -- asi es como lo manda el protocolo v1.
+;
+; [client:mountpoint]   <- OJO: una seccion POR mountpoint, no una clave
+;                           "mountpoint:usuario". inih trata ':' igual
+;                           que '=' como separador dentro de una linea
+;                           name=value, asi que iba a romper el parseo
+;                           si lo poniamos en la clave. En el nombre de
+;                           la SECCION es seguro (solo corta en ']').
+;   usuario = password
+;   Usado por GET /mountpoint con header "Authorization: Basic ..."
+;   (aplica tanto a clientes v1 como v2, comparten el mismo handler).
+;
+; auth_check_source()/auth_check_client() en src/protocol/auth.c fallan
+; cerrado: si el mountpoint/usuario no esta acá, se rechaza.
+;
+; IMPORTANTE (IMP-02): las passwords van HASHEADAS, formato
+; "pbkdf2-sha256$<iteraciones>$<salt_hex>$<hash_hex>" -- NUNCA texto
+; plano. auth.c rechaza (fail closed) cualquier entrada que no tenga
+; ese formato exacto. Para generar un hash nuevo:
+;     ./ntripcaster --hash-password
+;     (escribí la password en texto plano + Enter, se imprime el
+;      string listo para pegar acá)
+;
+; El hash de abajo corresponde literalmente a la password "CHANGE_ME"
+; -- es SOLO para que el archivo tenga forma valida antes de arrancar.
+; Reemplazalo por hashes reales de tus propias passwords antes de
+; exponer el caster.
+;
+; POST v2 (source) tambien valida contra [source] (auth cableada).
+;
+; Reload en caliente: editar conf/ntripcaster.conf y ejecutar
+;     kill -HUP $(pidof ntripcaster)
+; -- toma los cambios SIN reiniciar y sin cortar a los conectados.
+
+; ── Configuracion general del caster ──────────────────────────────
+; Prioridad: defaults < este archivo < linea de comandos / env
+;   ./ntripcaster [puerto] [conf] [log]   <- argv pisa al conf
+;   NTRIPCASTER_LOG=debug                 <- pisa a log_level
+[caster]
+port = 2101
+bind = 0.0.0.0
+threads = 0                ; 0 = auto (CPU cores)
+name = MiCaster            ; nombre en sourcetable (CAS/NET/STR) y header Server
+operator = TuNombre        ; operador (CAS line)
+country = SLV              ; codigo de pais de 3 letras
+max_clients = 1024
+max_sources = 128
+client_timeout = 60        ; segundos (0 = sin timeout)
+source_timeout = 30
+handshake_timeout = 10
+log_file = ntripcaster.log ; vacio = solo consola
+log_level = info           ; debug|info|warn|error
+
+[source]
+; CHANGE_ME: reemplazar por el hash real de la password de tu source
+BASE1 = pbkdf2-sha256$100000$b45b33e4a69653d69655a2b3dc37fac8$b1d9a409d25c041238dfaf186ab5a21fbb8d232c1f67a647618016d37055ae5b
+
+[client:BASE1]
+; CHANGE_ME: reemplazar por hashes reales de las passwords de tus rovers
+rover1 = pbkdf2-sha256$100000$b45b33e4a69653d69655a2b3dc37fac8$b1d9a409d25c041238dfaf186ab5a21fbb8d232c1f67a647618016d37055ae5b

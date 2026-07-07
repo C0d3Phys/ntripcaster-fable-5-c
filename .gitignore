@@ -17,3 +17,4 @@ capture_rtcm3_bin_UTC/
 # corresponde versionar la config de un despliegue puntual. Usar
 # conf/ntripcaster.conf.example como plantilla.
 conf/ntripcaster.conf
+docker/conf/

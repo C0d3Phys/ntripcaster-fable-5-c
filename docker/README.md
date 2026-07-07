@@ -55,8 +55,8 @@ docker run --rm -p 2101:2101 \
 Variables disponibles: `NTRIP_PORT`, `NTRIP_MOUNT`,
 `NTRIP_SOURCE_PASSWORD`, `NTRIP_ROVER1_USER`/`NTRIP_ROVER1_PASSWORD`,
 `NTRIP_ROVER2_USER`/`NTRIP_ROVER2_PASSWORD`, `NTRIP_CASTER_NAME`,
-`NTRIP_OPERATOR`, `NTRIP_COUNTRY`, `NTRIP_MAX_CLIENTS`,
-`NTRIP_MAX_SOURCES`, `NTRIP_LOG_LEVEL`.
+`NTRIP_OPERATOR`, `NTRIP_COUNTRY`, `NTRIP_HTML_TEMPLATE`,
+`NTRIP_MAX_CLIENTS`, `NTRIP_MAX_SOURCES`, `NTRIP_LOG_LEVEL`.
 
 ### Opción B — montar tu propio `conf/ntripcaster.conf` ya armado
 
@@ -90,3 +90,11 @@ docker kill --signal=HUP ntripcaster
   caster (cierra conexiones residuales antes de salir).
 - No se recomienda usar el binario de esta imagen fuera de Docker —
   para eso, compilá con `./build.sh` como indica el `README.md`.
+- Permisos de `./docker/conf` y `./templates`: no hace falta `chmod`/`chown`
+  manual en el host. El contenedor arranca como root (a propósito) y el
+  entrypoint corrige el dueño de esos volúmenes montados a `ntrip` antes
+  de generar el conf; recién ahí dropea privilegios de verdad (vía
+  `setpriv`) y ejecuta el caster. Si ves `Permission denied` seguido de
+  reinicios en loop (`docker compose ps` mostrando `Restarting`), es
+  casi siempre porque estás corriendo una imagen vieja de antes de este
+  cambio — reconstruí con `docker compose up -d --build`.

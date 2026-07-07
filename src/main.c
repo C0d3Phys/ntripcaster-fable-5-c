@@ -160,6 +160,8 @@ int main(int argc, char *argv[])
              cast.operator_name);
     snprintf(cfg.caster_country, sizeof(cfg.caster_country), "%s",
              cast.country);
+    snprintf(cfg.html_template, sizeof(cfg.html_template), "%s",
+             cast.html_template);
     broker_init(broker, &cfg);
 
     io_engine_t engine;

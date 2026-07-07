@@ -39,6 +39,9 @@ typedef struct {
     char     caster_name[64];
     char     caster_operator[64];
     char     caster_country[8];
+
+    /* Template HTML servido a browsers en GET / (ver core/config.h) */
+    char     html_template[256];
 } broker_config_t;
 
 /* ── Estado global del broker ────────────────────────────────────── */

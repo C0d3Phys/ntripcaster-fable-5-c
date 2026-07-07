@@ -19,6 +19,8 @@ void config_defaults(caster_config_t *c)
     snprintf(c->name, sizeof(c->name), "NtripCaster");
     snprintf(c->operator_name, sizeof(c->operator_name), "unknown");
     snprintf(c->country, sizeof(c->country), "DEU");
+    snprintf(c->html_template, sizeof(c->html_template),
+             "templates/sourcetable.html");
     c->max_clients         = 1024;
     c->max_sources         = 128;
     c->client_timeout_s    = 60;
@@ -49,6 +51,8 @@ static int caster_ini_handler(void *user, const char *section,
         snprintf(c->operator_name, sizeof(c->operator_name), "%s", value);
     else if (strcasecmp(name, "country") == 0)
         snprintf(c->country, sizeof(c->country), "%s", value);
+    else if (strcasecmp(name, "html_template") == 0)
+        snprintf(c->html_template, sizeof(c->html_template), "%s", value);
     else if (strcasecmp(name, "max_clients") == 0)
         c->max_clients = atoi(value);
     else if (strcasecmp(name, "max_sources") == 0)

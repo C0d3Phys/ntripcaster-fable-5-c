@@ -11,6 +11,11 @@ services:
       # contenedor -- si el archivo no existe la primera vez, el
       # entrypoint lo genera solo con las credenciales de abajo.
       - ./docker/conf:/app/conf
+      # Opcional: monta tu propio templates/sourcetable.html para
+      # retocar el diseno de la pagina que ve un browser (GET / con
+      # User-Agent: Mozilla) sin reconstruir la imagen. Se lee del
+      # disco en cada request -- los cambios se ven al instante.
+      - ./templates:/app/templates
     environment:
       NTRIP_PORT: "2101"
       NTRIP_MOUNT: "BASE1"

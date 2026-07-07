@@ -51,6 +51,13 @@ threads = 0                ; 0 = auto (CPU cores)
 name = MiCaster            ; nombre en sourcetable (CAS/NET/STR) y header Server
 operator = TuNombre        ; operador (CAS line)
 country = SLV              ; codigo de pais de 3 letras
+html_template = templates/sourcetable.html
+                            ; pagina HTML servida a browsers (User-Agent:
+                            ; Mozilla) en GET / -- ver src/protocol/html_template.h.
+                            ; Relativo al cwd del proceso. Editable en caliente
+                            ; (se relee del disco en cada request, sin reiniciar).
+                            ; Si el archivo no existe se sirve texto plano
+                            ; (fallback, queda loggeado).
 max_clients = 1024
 max_sources = 128
 client_timeout = 60        ; segundos (0 = sin timeout)

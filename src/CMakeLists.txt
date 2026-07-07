@@ -15,6 +15,7 @@ set(CORE_SOURCES
   protocol/ntrip_v1.c
   protocol/ntrip_v2.c
   protocol/sourcetable.c
+  protocol/html_template.c
   protocol/auth.c
   protocol/pwhash.c
 )

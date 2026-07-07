@@ -37,6 +37,7 @@ FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
+        util-linux \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --create-home --home-dir /home/ntrip \
                --shell /usr/sbin/nologin ntrip
@@ -45,14 +46,27 @@ COPY --from=build /src/build/src/ntripcaster /usr/local/bin/ntripcaster
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
+# templates/: el .html que se le sirve a un browser (User-Agent: Mozilla)
+# en GET / (ver src/protocol/html_template.h). Se lee del disco en cada
+# request -- si montas tu propio volumen acá, el diseño se puede retocar
+# sin recompilar ni reiniciar el contenedor.
+COPY templates /app/templates
+
 # /app/conf: donde vive (o se genera) ntripcaster.conf.
 # /app/logs: reservado por si algun dia se loguea a archivo -- por
 # defecto el conf generado por el entrypoint loguea a stdout/consola,
 # que es lo correcto para un contenedor (docker logs).
 RUN mkdir -p /app/conf /app/logs && chown -R ntrip:ntrip /app
 WORKDIR /app
-USER ntrip
 
+# OJO: NO hacemos "USER ntrip" acá. El contenedor arranca como root a
+# proposito -- es el UNICO modo de poder arreglar el dueño de volumenes
+# bind-mount (./docker/conf, ./templates) que Docker crea en el host
+# como root:root la primera vez que no existen. entrypoint.sh hace el
+# chown que hace falta y despues DROPEA privilegios de verdad con
+# `setpriv` antes de ejecutar el binario del caster -- el proceso que
+# queda corriendo (PID 1 real, via exec) es "ntrip", nunca root. Ver
+# docker/entrypoint.sh y docker/README.md.
 EXPOSE 2101
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

@@ -24,6 +24,10 @@ typedef struct {
     char operator_name[64];    /* operador (CAS line) */
     char country[8];           /* código de país por defecto (DEU, SLV...) */
 
+    /* Template HTML servido a browsers (User-Agent: Mozilla) en GET /.
+     * Ver src/protocol/html_template.h. Relativo al cwd del proceso. */
+    char html_template[256];
+
     /* Límites y timeouts */
     int  max_clients;
     int  max_sources;
